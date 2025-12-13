@@ -29,17 +29,15 @@ PyMuPDF          # pip install pymupdf
 
 # Clustering & Embeddings
 scikit-learn>=1.3.0
-sentence-transformers>=2.2.0  # For paper clustering
 
 # Validation & Utils
 jsonschema>=4.0.0  # For summary schema
 python-dateutil>=2.8.0
 
+sentence-transformers  # For paper clustering
 # Optional: Better PDF (if switching from PyPDF2)
 # PyMuPDF>=1.23.0  # Uncomment if using fitz for extraction
 
 tenacity>=8.0.0  # For exponential backoff retries (optional; custom impl below avoids it)
-
-google-generativeai>=0.8.3
 
 groq
