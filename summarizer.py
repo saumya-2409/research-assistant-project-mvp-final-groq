@@ -371,7 +371,7 @@ class FullPaperSummarizer:
             }}
         """
         
-        raw = self._gemini_call(prompt)
+        raw = self._llama_call(prompt)
         meta['_last_raw_gemini'] = (raw or "")[:20000]
         
         if not raw:
@@ -667,9 +667,7 @@ OUTPUT: Return a single JSON object using this exact structure and keys (nothing
 }}
 """
 
-        raw = self._gemini_call(prompt)
-        if not raw:
-            raw = self._llama_call(prompt)
+        raw = self._llama_call(prompt)
             
         print(f"\nraw: {raw}\n")
         # Save raw for debugging (truncated)
