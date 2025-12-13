@@ -15,6 +15,7 @@ import requests
 import re
 import logging
 from typing import Dict, Any, Optional, List, Tuple
+from groq import Groq
 import streamlit as st
 
 # Setup logging
@@ -277,6 +278,23 @@ class FullPaperSummarizer:
         self.summary_schema = SUMMARY_SCHEMA
         self.pdf_enabled = PYPDF2_AVAILABLE
 
+
+        #Groq setup
+        self.groq_client = None
+        self.groq_enabled = False
+        
+        groq_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+        if groq_key:
+            try:
+                self.groq_client = Groq(api_key=groq_key)
+                self.groq_enabled = True
+                self.current_model = "llama-3.1-70b-versatile"
+                print("[Summarizer] Groq LLaMA enabled")
+            except Exception as e:
+                print(f"[Groq Debug] Failed: {e}")
+        
+        
+        
         # Gemini setup
         self.gemini_model = None
         self.gemini_enabled = False
@@ -465,7 +483,47 @@ class FullPaperSummarizer:
             "accessibility": "inaccessible",
             "abstract_summary_status": "api_failure"
         }
-                
+
+    def _llama_call(self, prompt: str, max_retries: int = 3) -> str:
+        if not self.groq_enabled:
+            logger.warning("[API Failed] Groq not enabled")
+            return ""
+
+        for attempt in range(max_retries):
+            try:
+                response = self.groq_client.chat.completions.create(
+                    model=self.current_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a JSON-only generator. Output strictly valid JSON."
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    temperature=0.2,
+                    max_tokens=2048
+                )
+
+                text = response.choices[0].message.content.strip()
+                if text:
+                    return text
+
+            except Exception as e:
+                err = str(e).lower()
+                logger.warning(f"[Groq API Failed] {err} (attempt {attempt+1})")
+
+                if "rate" in err or "quota" in err:
+                    self.groq_enabled = False
+                    self.quota_exceeded = True
+                    return ""
+
+                time.sleep(2 ** attempt)
+
+        return ""
+
     def _gemini_call(self, prompt: str, max_retries: int = 3) -> str:
         """
         Call Gemini model and return raw text. This preserves your existing behaviour:
@@ -610,6 +668,9 @@ OUTPUT: Return a single JSON object using this exact structure and keys (nothing
 """
 
         raw = self._gemini_call(prompt)
+        if not raw:
+            raw = self._llama_call(prompt)
+            
         print(f"\nraw: {raw}\n")
         # Save raw for debugging (truncated)
         meta['_last_raw_gemini'] = (raw or "")[:20000]
