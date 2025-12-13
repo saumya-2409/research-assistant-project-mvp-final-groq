@@ -37,6 +37,9 @@ from urllib.parse import quote, urljoin, urlparse
 
 from utils import deduplicate_papers
 
+from dotenv import load_dotenv
+load_dotenv()
+
 PYPDF_AVAILABLE = False  # Default; not used in main.py
 import io  # For BytesIO
 
