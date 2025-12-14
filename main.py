@@ -959,10 +959,14 @@ def render_paper_ui(paper: dict):
         with c1:
             st.caption("📅 **Year**")
             st.write(f"{paper.get('year', 'N/A')}")
-        c2.markdown(f"**🎓 Citations:** {cites}")
-        c3.markdown(f"**🏛️ Source:** {source}")
+        with c2:
+            st.caption("🎓 **Citations**")
+            st.write(f"{paper.get('citations', 0)}")
+            
+        with c3:
+            st.caption("🏛️ **Source**")
+            st.write(source)
         st.markdown(f"**✍️ Authors:** {authors}")
-
         st.divider()
         
         # Display Metadata
