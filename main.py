@@ -956,23 +956,12 @@ def render_paper_ui(paper: dict):
        
         # Top Row: Metadata Badges
         c1, c2, c3 = st.columns([1, 1, 2])
-        with c1:
-            st.caption("📅 **Year**")
-            st.write(f"{paper.get('year', 'N/A')}")
-        with c2:
-            st.caption("🎓 **Citations**")
-            st.write(f"{paper.get('citations', 0)}")
-            
-        with c3:
-            st.caption("🏛️ **Source**")
-            st.write(source)
+        c1.markdown(f"**📅 Year:** {year}")
+        c2.markdown(f"**🎓 Citations:** {cites}")
+        c3.markdown(f"**🏛️ Source:** {source}")
+        
         st.markdown(f"**✍️ Authors:** {authors}")
         st.divider()
-        
-        # Display Metadata
-        st.caption(f"**Authors:** {authors} | **Source:** {source} | **Year:** {year} | **Citations:** {cites}")
-        
-        st.markdown("---")
         
         # 3. AI Summary Content
         summary = paper.get("ai_summary") or paper.get("abstract_summary") or {}
