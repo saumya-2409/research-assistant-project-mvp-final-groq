@@ -1128,88 +1128,92 @@ with st.sidebar:
         if query.strip() and sources:
             st.session_state.processing = True
         
-        try:
-            start_time = time.time()
-            fetcher = IntelligentMultiSourceFetcher()
-            papers = fetcher.fetch_papers(query, sources, papers_per_source)
-            fetch_time = time.time() - start_time
-            
-            if len(papers) == 0:
-                st.error("No papers found! Try different keywords or sources.")
-                st.session_state.processing = False
-                st.stop()
-            
-            # --- CHANGE STARTS HERE: Relevance Filtering & Sorting ---
-            st.info("3️⃣ **Smart Filter:** Removing duplicates and irrelevant results...")
-            valid_papers = []
-            for p in papers:
-                # 1. Compute Score
-                score = compute_relevance_embedding_score(query, p)
-                p['relevance_score'] = round(score, 3)
-                
-                # 2. Strict Filter (Threshold 0.35)
-                # This drops random/irrelevant papers entirely
-                if score >= 0.35: 
-                    valid_papers.append(p)
+        # Create the status container
+        with st.status("🚀 Initiating Research Sequence...", expanded=True) as status:
 
-            if not valid_papers:
-                st.warning("Papers were found, but none matched your query sufficiently. Try broader terms.")
-                st.session_state.processing = False
-                st.stop()
-            
-            # 3. Sort by Relevance + Year (Newest & Most Relevant first)
-            valid_papers.sort(key=lambda x: (x.get('relevance_score', 0.0), x.get('year') or 0), reverse=True)
-            
-            st.info(f"Processing {len(valid_papers)} highly relevant papers (Filtered from {len(papers)})")
-            
-            summarizer_instance = st.session_state.summarizer
+            try:
+                # Step 1: Fetching
+                st.write("1️⃣ **Scouting Sources:** Querying ArXiv & Semantic Scholar APIs...")
+                start_time = time.time()
+                fetcher = IntelligentMultiSourceFetcher()
+                # Pass a 'silent' flag or remove st.write inside fetch_papers to avoid duplicate logs
+                papers = fetcher.fetch_papers(query, sources, papers_per_source)
+                fetch_time = time.time() - start_time
 
-            # Helper function (Keep as is)
-            def process_single_paper(p):
-                summary = summarizer_instance.summarize_paper(p, use_full_text=True, query=query)
-                p['ai_summary'] = summary if isinstance(summary, dict) else {"summary": str(summary)}
-                
-                # Determine Status from the Summary Result
-                p['accessibility'] = summary.get('accessibility') if isinstance(summary, dict) else 'inaccessible'
-                p['abstract_summary_status'] = summary.get('abstract_summary_status', 'inaccessible') if isinstance(summary, dict) else 'inaccessible'
-                return p
+                if len(papers) == 0:
+                    status.update(label="❌ No papers found! Try different keywords or sources.", state="error")
+                    st.session_state.processing = False
+                    st.stop()
 
-            with st.spinner("4️⃣ **Deep Reading:** Generating comprehensive summaries for the best matches..."):
-                starttime = time.time()
-                papers_data = []
-                full_text_papers = []
-                suggested_papers = []
-
-                # PARALLEL EXECUTION (Max 3 workers to respect rate limits)
-                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                    # Map the function to the papers
-                    results = list(executor.map(process_single_paper, valid_papers))
-
-                # Sort results into accessible vs restricted
-                for paper in results:
-                    if paper.get('accessibility') == 'accessible':
-                        papers_data.append(paper)
-                        if paper.get('extracted_content') or paper.get('abstract_summary_status') == 'generated_from_fulltext':
-                            full_text_papers.append(paper)
-                    else:
-                        suggested_papers.append(paper)
-
-                # Save timings and state
-                summarytime = time.time() - starttime
-                st.success(f"Processed {len(papers)} papers, generated {len(papers_data)} accessible summaries in {summarytime:.1f}s")
-                status.update(label="✅ Research Analysis Complete!", state="complete", expanded=False)
-                # Persist into session state as required by UI (papers_data = non-restricted)  
-                st.session_state.papers_data = papers_data
-                st.session_state.full_text_papers = full_text_papers
-                st.session_state.suggested_papers = suggested_papers
-                st.session_state.clusters = {}
-                st.session_state.processing = False
+                # Step 2: Filtering
+                st.info("3️⃣ **Smart Filter:** Removing duplicates and irrelevant results...")
+                valid_papers = []
+                for p in papers:
+                    # 1. Compute Score
+                    score = compute_relevance_embedding_score(query, p)
+                    p['relevance_score'] = round(score, 3)
                     
-            st.balloons()
+                    # 2. Strict Filter (Threshold 0.35)
+                    # This drops random/irrelevant papers entirely
+                    if score >= 0.35: 
+                        valid_papers.append(p)
+
+                if not valid_papers:
+                    st.warning("Papers were found, but none matched your query sufficiently. Try broader terms.")
+                    st.session_state.processing = False
+                    st.stop()
                 
-        except Exception as e:
-            st.error(f"Error during analysis: {str(e)}")
-            st.session_state.processing = False
+                # 3. Sort by Relevance + Year (Newest & Most Relevant first)
+                valid_papers.sort(key=lambda x: (x.get('relevance_score', 0.0), x.get('year') or 0), reverse=True)
+                st.info(f"Processing {len(valid_papers)} highly relevant papers (Filtered from {len(papers)})")
+                summarizer_instance = st.session_state.summarizer
+
+                # Helper function (Keep as is)
+                def process_single_paper(p):
+                    summary = summarizer_instance.summarize_paper(p, use_full_text=True, query=query)
+                    p['ai_summary'] = summary if isinstance(summary, dict) else {"summary": str(summary)}
+                    
+                    # Determine Status from the Summary Result
+                    p['accessibility'] = summary.get('accessibility') if isinstance(summary, dict) else 'inaccessible'
+                    p['abstract_summary_status'] = summary.get('abstract_summary_status', 'inaccessible') if isinstance(summary, dict) else 'inaccessible'
+                    return p
+
+                with st.spinner("3️⃣ **Deep Reading:** Generating comprehensive summaries for the best matches..."):
+                    starttime = time.time()
+                    papers_data = []
+                    full_text_papers = []
+                    suggested_papers = []
+
+                    # PARALLEL EXECUTION (Max 3 workers to respect rate limits)
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                        # Map the function to the papers
+                        results = list(executor.map(process_single_paper, valid_papers))
+
+                    # Sort results into accessible vs restricted
+                    for paper in results:
+                        if paper.get('accessibility') == 'accessible':
+                            papers_data.append(paper)
+                            if paper.get('extracted_content') or paper.get('abstract_summary_status') == 'generated_from_fulltext':
+                                full_text_papers.append(paper)
+                        else:
+                            suggested_papers.append(paper)
+
+                    # Save timings and state
+                    summarytime = time.time() - starttime
+                    st.success(f"Processed {len(papers)} papers, generated {len(papers_data)} accessible summaries in {summarytime:.1f}s")
+                    status.update(label="✅ Research Analysis Complete!", state="complete", expanded=False)
+                    # Persist into session state as required by UI (papers_data = non-restricted)  
+                    st.session_state.papers_data = papers_data
+                    st.session_state.full_text_papers = full_text_papers
+                    st.session_state.suggested_papers = suggested_papers
+                    st.session_state.clusters = {}
+                    st.session_state.processing = False
+                        
+                st.balloons()
+                    
+            except Exception as e:
+                st.error(f"Error during analysis: {str(e)}")
+                st.session_state.processing = False
 
     # Clear Results Button
     if st.button("Clear Results", type="secondary"):
