@@ -941,8 +941,7 @@ def render_paper_ui(paper: dict):
             st.markdown("""<span style="background: #fef3c7; color: #b45309; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">⚡ Generated from Abstract (Full Text Unavailable)</span>""", unsafe_allow_html=True)
         else:
             st.markdown("""<span style="background: #dcfce7; color: #15803d; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">📄 Full Content Analysis</span>""", unsafe_allow_html=True)
-        
-        
+                
         # 2. Metadata Columns
         authors_list = paper.get("authors") or (paper.get("ai_summary") or {}).get("Authors") or []
         if isinstance(authors_list, list):
@@ -966,55 +965,64 @@ def render_paper_ui(paper: dict):
         # 3. AI Summary Content
         summary = paper.get("ai_summary") or paper.get("abstract_summary") or {}
 
-        # Problem Statement
-        problem = summary.get("Research_Problem") or summary.get("problem_statement") or summary.get("Purpose") or ""
-        if problem:
-            maybe_write_subheading(1, "Problem Statement", "What?")
-            st.write(problem)
-
-        # Objective
-        objective = summary.get("Research_Objective") or summary.get("objective") or ""
-        if objective:
-            maybe_write_subheading(2, "Research Objective", "Why / Goal?")
-            st.write(objective)
-
-        # Methodology
-        mma = summary.get("Methodology_Approach") or {}
-        method = mma.get("Method") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Method") or ""
-        process = mma.get("Process") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}) or ""
-        data_handling = mma.get("Data_Handling") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Data_handling") or ""
-        results_format = mma.get("Results_Format") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Results_Format") or ""
-
-        if method or process or data_handling or results_format:
-            maybe_write_subheading(3, "Methodology", "How?")
-            if method: st.markdown(f"- **Method:** {method}")
-            if process: st.markdown(f"- **Process:** {process}")
-            if data_handling: st.markdown(f"- **Data handling:** {data_handling}")
-            if results_format: st.markdown(f"- **Results format:** {results_format}")
-
-        # Key Findings
-        findings = summary.get("Key_Findings") or summary.get("key_findings") or []
-        if isinstance(findings, str): findings = [findings]
         
-        if findings:
-            maybe_write_subheading(4, "Key Findings", "What was found?")
-            for f in findings:
-                st.markdown(f"- {f}")
+        #new UI - dashboard like
+        col_left, col_right = st.columns([1.5, 1], gap="medium")
+        with col_left:
+            st.subheader("🎯 Research Goal")
 
-        # Implications
-        implications = summary.get("Aim_of_Study") or summary.get("reusability_practical_value") or ""
-        if implications:
-            maybe_write_subheading(5, "Implications / Practical value", "")
-            st.write(implications)
+            # Problem Statement
+            problem = summary.get("Research_Problem") or summary.get("problem_statement") or summary.get("Purpose") or ""
+            if problem:
+                maybe_write_subheading(1, "Problem Statement", "What?")
+                st.write(problem)
 
-        # Limitations
-        limitations = summary.get("limitations_and_future_work") or summary.get("limitations") or []
-        if limitations:
-            maybe_write_subheading(6, "Limitations & Future work", "")
-            if isinstance(limitations, list):
-                for l in limitations: st.markdown(f"- {l}")
-            else:
-                st.write(limitations)
+            # Objective
+            objective = summary.get("Research_Objective") or summary.get("objective") or ""
+            if objective:
+                maybe_write_subheading(2, "Research Objective", "Why / Goal?")
+                st.write(objective)
+        
+        with col_right:
+            st.subheader("⚙️ Methodology")
+
+            # Methodology
+            mma = summary.get("Methodology_Approach") or {}
+            method = mma.get("Method") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Method") or ""
+            process = mma.get("Process") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}) or ""
+            data_handling = mma.get("Data_Handling") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Data_handling") or ""
+            results_format = mma.get("Results_Format") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Results_Format") or ""
+
+            if method or process or data_handling or results_format:
+                maybe_write_subheading(3, "Methodology", "How?")
+                if method: st.markdown(f"- **Method:** {method}")
+                if process: st.markdown(f"- **Process:** {process}")
+                if data_handling: st.markdown(f"- **Data handling:** {data_handling}")
+                if results_format: st.markdown(f"- **Results format:** {results_format}")
+
+            # Key Findings
+            findings = summary.get("Key_Findings") or summary.get("key_findings") or []
+            if isinstance(findings, str): findings = [findings]
+            
+            if findings:
+                maybe_write_subheading(4, "Key Findings", "What was found?")
+                for f in findings:
+                    st.markdown(f"- {f}")
+
+            # Implications
+            implications = summary.get("Aim_of_Study") or summary.get("reusability_practical_value") or ""
+            if implications:
+                maybe_write_subheading(5, "Implications / Practical value", "")
+                st.write(implications)
+
+            # Limitations
+            limitations = summary.get("limitations_and_future_work") or summary.get("limitations") or []
+            if limitations:
+                maybe_write_subheading(6, "Limitations & Future work", "")
+                if isinstance(limitations, list):
+                    for l in limitations: st.markdown(f"- {l}")
+                else:
+                    st.write(limitations)
 
         # Keywords
         keywords = summary.get("Keywords") or paper.get("keywords") or []
