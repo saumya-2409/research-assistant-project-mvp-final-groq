@@ -955,14 +955,13 @@ def render_paper_ui(paper: dict):
         source = safe_str(paper.get("source") or paper.get("fetch_source") or (paper.get("ai_summary") or {}).get("Source",""))
        
         # Top Row: Metadata Badges
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns([1, 1, 2])
         c1.markdown(f"**📅 Year:** {year}")
         c2.markdown(f"**🎓 Citations:** {cites}")
         c3.markdown(f"**🏛️ Source:** {source}")
-        c4.markdown(f"**✍️ Authors:** {len(authors)}")
 
         st.divider()
-
+        
         # Display Metadata
         st.caption(f"**Authors:** {authors} | **Source:** {source} | **Year:** {year} | **Citations:** {cites}")
         
