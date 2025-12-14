@@ -1136,14 +1136,6 @@ with st.sidebar:
         min_value=10, max_value=100, value=30, step=10,
         help="Higher values provide more comprehensive results but take longer to process."
     )
-
-    st.markdown("### Number of Papers")
-    papers_per_source = st.slider(
-        "Number of papers per source",
-        15, 100, 30,
-        help="Select how many papers to fetch per source",
-        label_visibility="collapsed"
-    )
     
     # Build source list
     sources = []
@@ -1152,20 +1144,36 @@ with st.sidebar:
     
     if sources:
         expected_total = papers_per_source * len(sources)
-        st.success(f"Will analyze ~{expected_total} papers")
-        source_names = []
-        if use_arxiv: 
-            source_names.append("ArXiv" + ("" if ARXIV_AVAILABLE else ""))
-        if use_semantic: source_names.append("Semantic Scholar")
-        
-        st.markdown(f"**Sources:** {', '.join(source_names)}")
+        st.info(f"📊 **Estimate:** Analyzing up to **{expected_total}** papers.")
     else:
-        st.error("Please select at least one source!")
+        st.error("❌ Please select at least one source!")
     
     # Show content extraction capabilities
     if not BEAUTIFULSOUP_AVAILABLE:
         st.warning("**Install BeautifulSoup for enhanced extraction:** `pip install beautifulsoup4`")
     
+    # --- Buttons Layout (Side-by-Side) ---
+    col_start, col_clear = st.columns(2)
+
+    with col_start:
+        # Start Analysis Button
+        start_btn = st.button(
+            "🚀 Start", 
+            type="primary", 
+            disabled=st.session_state.processing or not sources or not query,
+            use_container_width=True,
+            help="Begin the intelligent research analysis."
+        )
+
+    with col_clear:
+        # Clear Results Button
+        clear_btn = st.button(
+            "🗑️ Clear", 
+            type="secondary",
+            use_container_width=True,
+            help="Reset all results and start fresh."
+        )
+
     # Start Analysis Button
     if st.button("Start Analysis", type="primary", disabled=st.session_state.processing or not sources or not query):
         if query.strip() and sources:
