@@ -1512,23 +1512,26 @@ else:
     ]
 
     col1, col2 = st.columns(2)
-    
-    for i, step in enumerate(steps):
-        column = col1 if i % 2 == 0 else col2
-        st.markdown(f"""
-        <div class="welcome-step">
-            <div style="display: flex; align-items: flex-start;">
-                <div class="step-number">{i+1}</div>
-                <div>
-                    <h4 style="margin: 0 0 0.5rem 0; color: #1e293b;">{step['title']}</h4>
-                    <p style="color: #64748b; margin: 0 0 0.8rem 0; line-height: 1.5;">{step['description']}</p>
-                    <div style="background: #f1f5f9; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.9rem; color: #475569;">
-                        <strong>Expected:</strong> {step['expected']}
+
+    for idx, step in enumerate(steps):
+        column = col1 if idx % 2 == 0 else col2
+        with column:
+            st.markdown(f"""
+            <div class="welcome-step">
+                <div style="display: flex; align-items: flex-start;">
+                    <div class="step-number">{idx + 1}</div>
+                    <div>
+                        <h4 style="margin: 0 0 0.5rem 0; color: #1e293b;">{step['title']}</h4>
+                        <p style="color: #64748b; margin: 0 0 0.8rem 0; line-height: 1.5;">
+                            {step['description']}
+                        </p>
+                        <div style="background: #f1f5f9; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.9rem; color: #475569;">
+                            <strong>Expected:</strong> {step['expected']}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
     
     # Dependencies and capabilities
     st.markdown("### System Status")
