@@ -1548,7 +1548,10 @@ else:
             st.warning("**Install BeautifulSoup** - `pip install beautifulsoup4`")
     
     st.markdown("### Example Results")
-    st.markdown("**Query:** `deep learning transformers` \n**Expected:** 60-300 papers \n**Intelligent Analysis:** Content extraction, access detection, enhanced summaries **Time:** 30-90 seconds")
+    st.markdown("**Query:** `deep learning transformers` ")
+    st.markdown("**Query:** **Expected:** 60-300 papers ")
+    st.markdown("**Query:** *Intelligent Analysis:** Content extraction, access detection, enhanced summaries ")
+    st.markdown("**Query:** **Time:** 30-90 seconds ")
 
 # Clean footer
 if not st.session_state.processing:
