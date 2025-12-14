@@ -706,7 +706,7 @@ class IntelligentMultiSourceFetcher:
         all_papers = []
         source_results = {}
         
-        st.write("**Phase 1: Starting multi-source search...**")
+        st.write("1️⃣ **Scouting Sources:** Fetching latest research from ArXiv & Semantic Scholar...")
 
         # --- FIX: PARALLEL FETCHING ---
         # We define a helper function to run a single fetcher
@@ -748,7 +748,7 @@ class IntelligentMultiSourceFetcher:
 
         # Phase 2: Parallel Intelligent access detection (Keep your existing Phase 2 code)
         if all_papers:
-            st.write("**Phase 2: Content access detection...**")
+            st.write("2️⃣ **Access Check:** Verifying which papers have downloadable PDFs...")
             
             processed_papers = []
             accessible_count = 0
@@ -1140,7 +1140,7 @@ with st.sidebar:
                 st.stop()
             
             # --- CHANGE STARTS HERE: Relevance Filtering & Sorting ---
-            st.info("Filtering irrelevant papers...")
+            st.info("3️⃣ **Smart Filter:** Removing duplicates and irrelevant results...")
             valid_papers = []
             for p in papers:
                 # 1. Compute Score
@@ -1174,7 +1174,7 @@ with st.sidebar:
                 p['abstract_summary_status'] = summary.get('abstract_summary_status', 'inaccessible') if isinstance(summary, dict) else 'inaccessible'
                 return p
 
-            with st.spinner("Generating enhanced AI summaries..."):
+            with st.spinner("4️⃣ **Deep Reading:** Generating comprehensive summaries for the best matches..."):
                 starttime = time.time()
                 papers_data = []
                 full_text_papers = []
@@ -1197,7 +1197,7 @@ with st.sidebar:
                 # Save timings and state
                 summarytime = time.time() - starttime
                 st.success(f"Processed {len(papers)} papers, generated {len(papers_data)} accessible summaries in {summarytime:.1f}s")
-
+                status.update(label="✅ Research Analysis Complete!", state="complete", expanded=False)
                 # Persist into session state as required by UI (papers_data = non-restricted)  
                 st.session_state.papers_data = papers_data
                 st.session_state.full_text_papers = full_text_papers
