@@ -1508,7 +1508,7 @@ else:
         },
         {
             'title': 'Set Paper Count',
-            'description': 'Choose papers per source (10-100) - system will intelligently analyze accessibility',
+            'description': 'Choose papers per source (15-100) - system will intelligently analyze accessibility',
             'expected': 'More papers = comprehensive analysis but longer processing time'
         },
         {
