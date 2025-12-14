@@ -1510,12 +1510,15 @@ else:
             'expected': '30-90 seconds for complete intelligent analysis with content extraction'
         }
     ]
+
+    col1, col2 = st.columns(2)
     
-    for i, step in enumerate(steps, 1):
+    for i, step in enumerate(steps):
+        column = col1 if i % 2 == 0 else col2
         st.markdown(f"""
         <div class="welcome-step">
             <div style="display: flex; align-items: flex-start;">
-                <div class="step-number">{i}</div>
+                <div class="step-number">{i+1}</div>
                 <div>
                     <h4 style="margin: 0 0 0.5rem 0; color: #1e293b;">{step['title']}</h4>
                     <p style="color: #64748b; margin: 0 0 0.8rem 0; line-height: 1.5;">{step['description']}</p>
