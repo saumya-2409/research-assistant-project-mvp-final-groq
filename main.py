@@ -1,77 +1,67 @@
-"""
-¬ INTELLIGENT Research Assistant - Smart Paper Access & Content Extraction
-- Intelligently detects which papers are actually accessible
-- Fetches full text content from accessible papers
-- Provides direct paper links (not just search links)
-- Only truly paywalled papers go to "suggested reading"
-- Enhanced content extraction and summarization
-- Beautiful design preserved
-"""
-
 import streamlit as st
 import warnings
 import os
 import logging
-import hashlib
-import re
 import random
 import time
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import requests
-import json
-import html
-import textwrap
-import base64
-import webbrowser
+import io
 import concurrent.futures
-from summarizer import FullPaperSummarizer
-from PyPDF2 import PdfReader
-from embedding_utils import compute_relevance_embedding_score
-
+import plotly.express as px
 from typing import List, Dict, Optional
 from datetime import datetime
-from collections import Counter
-from urllib.parse import quote, urljoin, urlparse
+from urllib.parse import urljoin
 
+# External modules
+from summarizer import FullPaperSummarizer
+from embedding_utils import compute_relevance_embedding_score
 from utils import deduplicate_papers
-
 from dotenv import load_dotenv
+
+# --- CONFIGURATION & LOGGING ---
 load_dotenv()
-
-PYPDF_AVAILABLE = False  # Default; not used in main.py
-import io  # For BytesIO
-
-# Suppress all warnings
 warnings.filterwarnings("ignore")
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-logging.getLogger().setLevel(logging.ERROR)
 
-st.set_page_config(
-    page_title="AI Research Assistant",
-    page_icon=" § ",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# Configure Logging (Debug Mode)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
 )
+logger = logging.getLogger("ResearchAssistant")
 
-# Try to import optional libraries
+# Optional Libraries Check
 try:
     import arxiv
     ARXIV_AVAILABLE = True
 except ImportError:
     ARXIV_AVAILABLE = False
+    logger.warning("ArXiv library not found. ArXiv fetching will be disabled.")
 
 try:
     from bs4 import BeautifulSoup
     BEAUTIFULSOUP_AVAILABLE = True
 except ImportError:
     BEAUTIFULSOUP_AVAILABLE = False
+    logger.warning("BeautifulSoup not found. HTML parsing capabilities limited.")
 
-# At top of main.py (after imports)
+PYPDF_AVAILABLE = True # Assuming installed based on imports
+
+st.set_page_config(
+    page_title="AI Research Assistant",
+    page_icon="§",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Initialize Summarizer Singleton
 if 'summarizer' not in st.session_state:
-    st.session_state.summarizer = FullPaperSummarizer()
-    print("[App Debug] Summarizer singleton created")
+    try:
+        st.session_state.summarizer = FullPaperSummarizer()
+        logger.info("Summarizer singleton initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize summarizer: {e}")
 
 # BEAUTIFUL DESIGN CSS (PRESERVED)
 st.markdown("""
@@ -368,113 +358,126 @@ class IntelligentPaperAccessor:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
+        # Keywords indicating a likely PDF download link
+        self.pdf_cues = ['pdf', 'download', 'full text', 'access', 'view']
     
     def check_and_extract_paper_content(self, paper: Dict) -> Dict:
+        """Main entry point for processing a paper."""
         paper = paper.copy()
+
+        # Priority Order: Direct PDF -> Landing Page -> Semantic Scholar -> DOI
         access_methods = []
-        pdf_url = paper.get('pdf_url')
-        if pdf_url:
-            access_methods.append(('direct_pdf', pdf_url))
-        paper_url = paper.get('url', '')
-        if paper_url:
-            access_methods.append(('paper_landing', paper_url))  # For indirect links
-        semantic_id = paper.get('semantic_scholar_id')
-        if semantic_id:
-            access_methods.append(('semantic_alternative', f"https://www.semanticscholar.org/paper/{semantic_id}"))
-        doi = paper.get('doi', '')
-        if doi:
-            access_methods.append(('doi_pdf', f"https://doi.org/{doi}"))  # DOI resolver
-        extracted_content = None
-        working_url = None
-        access_type = None
+        if paper.get('pdf_url') : access_methods.append(('direct_pdf', paper['pdf_url']))
+        if paper.get('url'): access_methods.append(('paper_landing', paper['url']))
+        if paper.get('semantic_scholar_id'):
+            access_methods.append(('semantic_alternative', f"https://www.semanticscholar.org/paper/{paper['semantic_scholar_id']}"))
+        if paper.get('doi'):
+            access_methods.append(('doi_pdf', f"https://doi.org/{paper['doi']}"))
+        
         for method_name, url in access_methods:
             try:
                 content = self.try_extract_content(url, method_name)
-                if content and len(content) > 200:
-                    extracted_content = content[:3000]  # Your length limit
-                    working_url = url
-                    access_type = method_name
+
+                # Validation: We need substantial text, not just an error message
+                if content and len(content) > 500:
+                    paper['extracted_content'] = content[:4000] 
+                    paper['working_url'] = url
+                    paper['access_type'] = method_name
+                    paper['pdf_available'] = True
+                    logger.info(f"✅ Success: Extracted via {method_name}")
                     break
-            except:
+            except Exception:
                 continue
-        if extracted_content:
-            paper['extracted_content'] = extracted_content
-            paper['working_url'] = working_url
-            paper['access_type'] = access_type
-            paper['pdf_available'] = True
         return paper
 
     def try_extract_content(self, url: str, method_name: str) -> Optional[str]:
+        """Attempts to fetch content, handling both Direct PDFs and Indirect HTML links."""
         try:
             response = self.session.get(url, timeout=10, allow_redirects=True)
-            if response.status_code != 200:
-                return None
+            if response.status_code != 200: return None
+
             content_type = response.headers.get('Content-Type', '').lower()
+
+            # --- CASE 1: Direct PDF ---
             if 'application/pdf' in content_type:
-                content_len = len(response.content)
-                if content_len < 500 * 1024:  # Small PDF limit
-                    if PYPDF_AVAILABLE:
-                        try:
-                            reader = PdfReader(io.BytesIO(response.content))
-                            text = ''
-                            for page in reader.pages[:5]:
-                                text += (page.extract_text() or '') + '\n'
-                            text = text.strip()[:4000]
-                            if len(text) > 200:
-                                return text
-                        except Exception:
-                            pass
-                    return f"PDF content available ({content_len / 1024:.0f} KB) - Install pypdf for extraction: pip install pypdf"
-                return f"PDF content available for download ({content_len / 1024:.0f} KB)"
-            elif 'text/html' in content_type:
-                if not BEAUTIFULSOUP_AVAILABLE:
-                    return "HTML content (install BeautifulSoup for scraping: pip install beautifulsoup4)"
+                return self._extract_pdf_text(response.content)
+            
+            # --- CASE 2: HTML Landing Page (Deep Search) ---
+            elif 'text/html' in content_type and BEAUTIFULSOUP_AVAILABLE:
                 soup = BeautifulSoup(response.content, 'html.parser')
-                for tag in soup(['script', 'style']):
-                    tag.decompose()
-                pdf_links = []
-                cues = ['pdf', 'download', 'full text', 'access pdf', 'view pdf']
-                for a in soup.find_all('a', href=True, limit=20):
-                    href = a['href'].lower()
-                    text = a.get_text(strip=True).lower()
-                    if href.endswith('.pdf') or any(cue in href or cue in text for cue in cues) or 'doi.org' in href:
-                        full_href = urljoin(url, a['href'])
-                        pdf_links.append(full_href)
-                        if len(pdf_links) >= 3:
-                            break
-                for candidate in pdf_links:
-                    try:
-                        cand_resp = self.session.get(candidate, timeout=8, allow_redirects=True)
-                        if cand_resp.status_code == 200 and 'application/pdf' in cand_resp.headers.get('Content-Type', ''):
-                            content_len = len(cand_resp.content)
-                            if content_len < 500 * 1024:
-                                if PYPDF_AVAILABLE:
-                                    try:
-                                        reader = PdfReader(io.BytesIO(cand_resp.content))
-                                        text = ''
-                                        for page in reader.pages[:5]:
-                                            text += (page.extract_text() or '') + '\n'
-                                        text = text.strip()[:4000]
-                                        if len(text) > 200:
-                                            return text
-                                    except Exception:
-                                        pass
-                                return f"Indirect PDF found ({content_len / 1024:.0f} KB) - Install pypdf for extraction"
-                            return f"Indirect PDF accessed via {method_name} ({content_len / 1024:.0f} KB)"
-                    except:
-                        continue
-                # Fallback HTML extraction
-                main_content = soup.find('main') or soup.find('article') or soup.body
-                if main_content:
-                    text = main_content.get_text(separator=' ', strip=True)[:3000]
-                    if len(text) > 200:
-                        return text
-                return soup.get_text(separator=' ', strip=True)[:2000]
+
+                # A. Try to find a PDF link inside this HTML page
+                indirect_pdf_text = self._attempt_pdf_link_discovery(soup, url)
+                if indirect_pdf_text:
+                    return indirect_pdf_text
+                
+                # B. If no PDF link found, scrape the HTML text directly
+                return self._extract_html_text(soup)
+        
             return None
-        except requests.exceptions.Timeout:
-            return "Timeout accessing content"
+        except Exception as e:
+            logger.debug(f"Extraction failed for {url}: {e}")
+            return None
+
+    def _attempt_pdf_link_discovery(self, soup, base_url) -> Optional[str]:
+        """Restored Logic: Scans HTML for 'Download PDF' links and tries to fetch them."""
+        try:
+            candidates = []
+            
+            # Find all links that look like PDFs
+            for a in soup.find_all('a', href=True, limit=30):
+                href = a['href'].lower()
+                text = a.get_text(strip=True).lower()
+                
+                # Heuristic: Link ends in .pdf OR text contains keywords like 'download'
+                if href.endswith('.pdf') or any(cue in text or cue in href for cue in self.pdf_cues):
+                    full_url = urljoin(base_url, a['href'])
+                    candidates.append(full_url)
+
+            # Try the top 3 most likely candidates
+            for pdf_link in candidates[:3]:
+                try:
+                    logger.debug(f"Deep Search: Trying candidate {pdf_link}")
+                    resp = self.session.get(pdf_link, timeout=8)
+                    
+                    if resp.status_code == 200 and 'application/pdf' in resp.headers.get('Content-Type', ''):
+                        text = self._extract_pdf_text(resp.content)
+                        if len(text) > 200:
+                            return text # Found it!
+                except Exception:
+                    continue
+                    
+            return None # No valid PDF found in links
         except Exception:
             return None
+
+    def _extract_pdf_text(self, content: bytes) -> str:
+            """Helper to parse PDF bytes."""
+            try:
+                # Size guard: Don't try to parse massive PDFs (limit to ~5MB)
+                if len(content) > 5 * 1024 * 1024: 
+                    return "PDF too large to parse directly."
+                    
+                reader = PdfReader(io.BytesIO(content))
+                text = '\n'.join([page.extract_text() or '' for page in reader.pages[:5]])
+                return text.strip()
+            except Exception:
+                return ""   
+    
+    def _extract_html_text(self, soup) -> str:
+        """Helper to clean and parse HTML soup."""
+        try:
+            for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
+                tag.decompose()
+            
+            # Prioritize main content areas
+            main = soup.find('main') or soup.find('article') or soup.find('div', class_=re.compile(r'content|body|main'))
+            if main:
+                return main.get_text(separator=' ', strip=True)
+            
+            return soup.get_text(separator=' ', strip=True)
+        except Exception:
+            return ""
 
 # ==================== REAL ARXIV FETCHER (SAME AS BEFORE) ====================
 class RealArxivFetcher:
