@@ -918,37 +918,62 @@ def render_paper_ui(paper: dict):
     def safe_str(x):
         return "" if x is None else str(x)
 
-    def maybe_write_subheading(number: int, title: str, subtitle: str = ""):
-        # e.g. "2. Problem Statement (What?)"
-        heading = f"{number}. {title}"
-        if subtitle:
-            heading += f" ({subtitle})"
-        st.markdown(f"**{heading}**")
-
-    # --- Header Information ---
-    title = safe_str(paper.get("title") or (paper.get("ai_summary") or {}).get("Title") or "Research Paper Summary")
-    # --- CHANGE STARTS HERE: Add Badges ---
-    is_abstract_only = paper.get("abstract_summary_status") == "generated_from_abstract"
+    # --- 1. Data Preparation ---
     
-    # Determine Emoji for the dropdown label
+    #Header 
+    title = safe_str(paper.get("title") or (paper.get("ai_summary") or {}).get("Title") or "Research Paper Summary")
+    
+    # Status Badges
+    is_abstract_only = paper.get("abstract_summary_status") == "generated_from_abstract"
     status_emoji = "⚡" if is_abstract_only else "📄"
 
-    # --- DROPDOWN (EXPANDER) START ---
-    # The title is now the clickable element
+    # Author Formatting
+    authors_list = paper.get("authors") or (paper.get("ai_summary") or {}).get("Authors") or []
+    if isinstance(authors_list, list):
+        authors = ", ".join(authors_list)
+    else:
+        authors = safe_str(authors_list)   
+
+    # Extract AI Summary Data
+    summary = paper.get("ai_summary") or paper.get("abstract_summary") or {}
+
+    # Data extraction with fallbacks
+    problem = summary.get("Research_Problem") or summary.get("problem_statement") or summary.get("Purpose") or ""
+    objective = summary.get("Research_Objective") or summary.get("objective") or ""
+    implications = summary.get("Aim_of_Study") or summary.get("reusability_practical_value") or ""
+    limitations = summary.get("limitations_and_future_work") or summary.get("limitations") or []     
+    # Methodology
+    mma = summary.get("Methodology_Approach") or {}  
+    method = mma.get("Method") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Method") or ""
+    process = mma.get("Process") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}) or ""
+    data_handling = mma.get("Data_Handling") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Data_handling") or ""
+    results_format = mma.get("Results_Format") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Results_Format") or ""          
+    #Key Findings
+    findings = summary.get("Key_Findings") or summary.get("key_findings") or []
+    if isinstance(findings, str): findings = [findings]
+
+    # Button Links
+    working_url = paper.get('working_url') or paper.get('url')
+    pdf_url = paper.get('pdf_url')
+
+    # --- 2. UI Render ---
     with st.expander(f"{status_emoji} {title}", expanded=False):
-        # 1. Badges (Inside the dropdown at the top)
+
+        # --- A. Header Badges ---
+        st.markdown(f"""
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+            <span style="background-color: #e0f2fe; color: #0284c7; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">📅 {paper.get('year', 'N/A')}</span>
+            <span style="background-color: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">🎓 {paper.get('citations', 0)} Citations</span>
+            <span style="background-color: #f3f4f6; color: #4b5563; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">🏛️ {source}</span>
+        </div>
+        <div style="color: #64748b; font-size: 0.9rem; margin-bottom: 15px;">✍️ <em>{author_str}</em></div>
+        """, unsafe_allow_html=True)
+        
         if is_abstract_only:
             st.markdown("""<span style="background: #fef3c7; color: #b45309; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">⚡ Generated from Abstract (Full Text Unavailable)</span>""", unsafe_allow_html=True)
         else:
             st.markdown("""<span style="background: #dcfce7; color: #15803d; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">📄 Full Content Analysis</span>""", unsafe_allow_html=True)
                 
-        # 2. Metadata Columns
-        authors_list = paper.get("authors") or (paper.get("ai_summary") or {}).get("Authors") or []
-        if isinstance(authors_list, list):
-            authors = ", ".join(authors_list)
-        else:
-            authors = safe_str(authors_list)
-
         year = safe_str(paper.get("year") or (paper.get("ai_summary") or {}).get("Year",""))
         cites = safe_str(paper.get("citations") or paper.get("citation_count") or (paper.get("ai_summary") or {}).get("Citations",""))
         source = safe_str(paper.get("source") or paper.get("fetch_source") or (paper.get("ai_summary") or {}).get("Source",""))
@@ -961,36 +986,23 @@ def render_paper_ui(paper: dict):
         
         st.markdown(f"**✍️ Authors:** {authors}")
         st.divider()
-        
-        # 3. AI Summary Content
-        summary = paper.get("ai_summary") or paper.get("abstract_summary") or {}
 
-        
         #new UI - dashboard like
         r1c1, r1c2 = st.columns(2, gap="medium")
         with r1c1:
-            # Problem Statement
-            problem = summary.get("Research_Problem") or summary.get("problem_statement") or summary.get("Purpose") or ""
             if problem:
                 st.markdown("#### 1️⃣ Problem Statement")
                 st.write(problem)
 
         with r1c2:
             # Objective
-            objective = summary.get("Research_Objective") or summary.get("objective") or ""
             if objective:
                 st.markdown("#### 2️⃣ Research Objective")
                 st.write(objective)
 
         r2c1, r2c2 = st.columns(2, gap="medium")
         with r2c1:
-            # Methodology
-            mma = summary.get("Methodology_Approach") or {}
-            method = mma.get("Method") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Method") or ""
-            process = mma.get("Process") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}) or ""
-            data_handling = mma.get("Data_Handling") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Data_handling") or ""
-            results_format = mma.get("Results_Format") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Results_Format") or ""
-
+            # Methodology            
             if method or process or data_handling or results_format:
                 st.markdown("#### 3️⃣ Methodology")
                 if method: st.markdown(f"- **Method:** {method}")
@@ -1000,8 +1012,6 @@ def render_paper_ui(paper: dict):
         
         with r2c2:
             # Key Findings
-            findings = summary.get("Key_Findings") or summary.get("key_findings") or []
-            if isinstance(findings, str): findings = [findings]
             if findings:
                 st.markdown("#### 4️⃣ Key Findings")
                 for f in findings:
@@ -1010,14 +1020,12 @@ def render_paper_ui(paper: dict):
         r3c1, r3c2 = st.columns(2, gap="medium")
         with r3c1:
             # Implications
-            implications = summary.get("Aim_of_Study") or summary.get("reusability_practical_value") or ""
             if implications:
                 st.markdown("#### 5️⃣ Implications / Value")
                 st.write(implications)
 
         with r3c2:
             # Limitations
-            limitations = summary.get("limitations_and_future_work") or summary.get("limitations") or []
             if limitations:
                 st.markdown("#### 6️⃣ Limitations & Future")
                 if isinstance(limitations, list):
@@ -1036,7 +1044,7 @@ def render_paper_ui(paper: dict):
         st.markdown("---")
         col1, col2, col3 = st.columns(3)
 
-        working_url = paper.get('working_url') or paper.get('url')
+        
         if working_url:
             access_type = paper.get('access_type', 'direct')
             button_label = "Access Paper (PDF)" if access_type == 'direct_pdf' else "Access Full Paper"
@@ -1046,7 +1054,6 @@ def render_paper_ui(paper: dict):
                     webbrowser.open_new_tab(working_url)
 
         # Direct PDF fallback
-        pdf_url = paper.get('pdf_url')
         if pdf_url and pdf_url != working_url:
             with col2:
                 if st.button("Direct PDF Download", key=f"pdf_{paper.get('id', 'unknown')}"):
