@@ -1114,8 +1114,6 @@ with st.sidebar:
         placeholder="e.g., Generative AI in Healthcare",
         help="Enter the specific topic you want to analyze"
     )
-
-    st.divider()
     
     st.markdown("### 📚 Data Sources")
 
@@ -1131,8 +1129,14 @@ with st.sidebar:
         use_semantic = st.checkbox("Semantic Scholar", value=True) 
 
     st.caption("Select at least one source to fetch papers from.")
-    st.divider()
-    
+
+    st.markdown("### ⚙️ Configuration")
+    papers_per_source = st.slider(
+        "**Papers to Fetch (per source)**",
+        min_value=10, max_value=100, value=30, step=10,
+        help="Higher values provide more comprehensive results but take longer to process."
+    )
+
     st.markdown("### Number of Papers")
     papers_per_source = st.slider(
         "Number of papers per source",
