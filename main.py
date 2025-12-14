@@ -959,6 +959,7 @@ def render_paper_ui(paper: dict):
         c1.markdown(f"**📅 Year:** {year}")
         c2.markdown(f"**🎓 Citations:** {cites}")
         c3.markdown(f"**🏛️ Source:** {source}")
+        st.markdown(f"**✍️ Authors:** {authors}")
 
         st.divider()
         
