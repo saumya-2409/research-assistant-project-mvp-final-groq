@@ -748,7 +748,7 @@ class IntelligentMultiSourceFetcher:
 
         # Phase 2: Parallel Intelligent access detection (Keep your existing Phase 2 code)
         if all_papers:
-            st.write("**Phase 2: Content access detection (Parallel)...**")
+            st.write("**Phase 2: Content access detection...**")
             
             processed_papers = []
             accessible_count = 0
@@ -1527,41 +1527,6 @@ else:
         </div>
         """, unsafe_allow_html=True)
     
-    # Enhanced capabilities
-    st.markdown("### Enhanced Capabilities")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        ** Intelligent Content Extraction**
-        - Detects accessible papers automatically
-        - Extracts full text content when available  
-        - Enhanced summaries from extracted content
-        - Direct repository link generation
-        
-        **  Smart Classification**
-        - Only truly restricted papers in "Suggested Reading"
-        - Accessible papers get full analysis
-        - Content extraction status indicators
-        - Enhanced citation and relevance analysis
-        """)
-    
-    with col2:
-        st.markdown("""
-        ** Advanced Access Detection**
-        - Multiple repository URL generation
-        - Working link identification
-        - Alternative access point discovery
-        - PDF availability verification
-        
-        ** Enhanced Analysis**
-        - Content-aware gap analysis
-        - Extracted content-based clustering
-        - Smart paper scoring and deduplication
-        - Real-time access status updates
-        """)
-    
     # Dependencies and capabilities
     st.markdown("### System Status")
     
@@ -1583,7 +1548,7 @@ else:
             st.warning("**Install BeautifulSoup** - `pip install beautifulsoup4`")
     
     st.markdown("### Example Results")
-    st.markdown("**Query:** `deep learning transformers` **Expected:** 60-300 papers **Intelligent Analysis:** Content extraction, access detection, enhanced summaries **Time:** 30-90 seconds")
+    st.markdown("**Query:** `deep learning transformers` \n**Expected:** 60-300 papers \n**Intelligent Analysis:** Content extraction, access detection, enhanced summaries **Time:** 30-90 seconds")
 
 # Clean footer
 if not st.session_state.processing:
