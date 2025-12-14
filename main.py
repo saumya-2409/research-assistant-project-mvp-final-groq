@@ -1070,6 +1070,7 @@ def render_suggested_paper(paper: Dict):
     if paper.get("abstract_summary_status") == "empty_summary":
         reason = "Content Unavailable for Analysis"
     
+    '''
     st.markdown(f"""
     <div class="suggested-card">
         <h4 style="margin-bottom: 0.5rem; color: #1e293b;">{paper.get('title', 'Unknown Title')}</h4>
@@ -1088,6 +1089,7 @@ def render_suggested_paper(paper: Dict):
     </div>
     """, unsafe_allow_html=True)
     # --- CHANGE ENDS HERE ---
+    '''
     
     st.markdown(f"""
     <div class="suggested-card">
