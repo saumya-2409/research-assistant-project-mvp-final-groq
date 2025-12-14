@@ -973,7 +973,6 @@ def render_paper_ui(paper: dict):
             problem = summary.get("Research_Problem") or summary.get("problem_statement") or summary.get("Purpose") or ""
             if problem:
                 st.markdown("#### 1️⃣ Problem Statement")
-                maybe_write_subheading(1, "Problem Statement", "What?")
                 st.write(problem)
 
         with r1c2:
@@ -981,7 +980,6 @@ def render_paper_ui(paper: dict):
             objective = summary.get("Research_Objective") or summary.get("objective") or ""
             if objective:
                 st.markdown("#### 2️⃣ Research Objective")
-                maybe_write_subheading(2, "Research Objective", "Why / Goal?")
                 st.write(objective)
 
         r2c1, r2c2 = st.columns(2, gap="medium")
@@ -994,7 +992,7 @@ def render_paper_ui(paper: dict):
             results_format = mma.get("Results_Format") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Results_Format") or ""
 
             if method or process or data_handling or results_format:
-                maybe_write_subheading(3, "Methodology", "How?")
+                st.markdown("#### 3️⃣ Methodology")
                 if method: st.markdown(f"- **Method:** {method}")
                 if process: st.markdown(f"- **Process:** {process}")
                 if data_handling: st.markdown(f"- **Data handling:** {data_handling}")
@@ -1004,9 +1002,8 @@ def render_paper_ui(paper: dict):
             # Key Findings
             findings = summary.get("Key_Findings") or summary.get("key_findings") or []
             if isinstance(findings, str): findings = [findings]
-            
             if findings:
-                maybe_write_subheading(4, "Key Findings", "What was found?")
+                st.markdown("#### 4️⃣ Key Findings")
                 for f in findings:
                     st.markdown(f"- {f}")
 
@@ -1015,14 +1012,14 @@ def render_paper_ui(paper: dict):
             # Implications
             implications = summary.get("Aim_of_Study") or summary.get("reusability_practical_value") or ""
             if implications:
-                maybe_write_subheading(5, "Implications / Practical value", "")
+                st.markdown("#### 5️⃣ Implications / Value")
                 st.write(implications)
 
         with r3c2:
             # Limitations
             limitations = summary.get("limitations_and_future_work") or summary.get("limitations") or []
             if limitations:
-                maybe_write_subheading(6, "Limitations & Future work", "")
+                st.markdown("#### 6️⃣ Limitations & Future")
                 if isinstance(limitations, list):
                     for l in limitations: st.markdown(f"- {l}")
                 else:
@@ -1042,7 +1039,7 @@ def render_paper_ui(paper: dict):
         working_url = paper.get('working_url') or paper.get('url')
         if working_url:
             access_type = paper.get('access_type', 'direct')
-            button_label = "Access Paper (PDF)" if access_type == 'direct_pdf' else "Access Full Paper"
+            button_label = "🔗 View Paper"
             
             with col1:
                 if st.button(button_label, key=f"btn_{working_url}"):
@@ -1052,7 +1049,7 @@ def render_paper_ui(paper: dict):
         pdf_url = paper.get('pdf_url')
         if pdf_url and pdf_url != working_url:
             with col2:
-                if st.button("Direct PDF Download", key=f"pdf_{paper.get('id', 'unknown')}"):
+                if st.button("📥 Download PDF", key=f"pdf_{paper.get('id', 'unknown')}"):
                     webbrowser.open_new_tab(pdf_url)
 
 def render_suggested_paper(paper: Dict):
