@@ -1255,7 +1255,6 @@ with st.sidebar:
                     st.session_state.processing = False
                         
                     st.balloons()
-                    st.rerun()
                     
             except Exception as e:
                 status.update(label="❌ An error occurred during analysis.", state="error")
