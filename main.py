@@ -1039,7 +1039,7 @@ def render_paper_ui(paper: dict):
         working_url = paper.get('working_url') or paper.get('url')
         if working_url:
             access_type = paper.get('access_type', 'direct')
-            button_label = "🔗 View Paper"
+            button_label = "Access Paper (PDF)" if access_type == 'direct_pdf' else "Access Full Paper"
             
             with col1:
                 if st.button(button_label, key=f"btn_{working_url}"):
@@ -1049,7 +1049,7 @@ def render_paper_ui(paper: dict):
         pdf_url = paper.get('pdf_url')
         if pdf_url and pdf_url != working_url:
             with col2:
-                if st.button("📥 Download PDF", key=f"pdf_{paper.get('id', 'unknown')}"):
+                if st.button("Direct PDF Download", key=f"pdf_{paper.get('id', 'unknown')}"):
                     webbrowser.open_new_tab(pdf_url)
 
 def render_suggested_paper(paper: Dict):
