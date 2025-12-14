@@ -1148,10 +1148,6 @@ with st.sidebar:
     else:
         st.error("❌ Please select at least one source!")
     
-    # Show content extraction capabilities
-    if not BEAUTIFULSOUP_AVAILABLE:
-        st.warning("**Install BeautifulSoup for enhanced extraction:** `pip install beautifulsoup4`")
-    
     # --- Buttons Layout (Side-by-Side) ---
     col_start, col_clear = st.columns(2)
 
@@ -1174,62 +1170,61 @@ with st.sidebar:
             help="Reset all results and start fresh."
         )
 
-    # Start Analysis Button
-    if st.button("Start Analysis", type="primary", disabled=st.session_state.processing or not sources or not query):
+    # --- Logic Handling ---
+    
+    # Handle Start Logic
+    if start_btn:
         if query.strip() and sources:
             st.session_state.processing = True
         
         # Create the status container
         with st.status("🚀 Initiating Research Sequence...", expanded=True) as status:
-
             try:
                 # Step 1: Fetching
-                st.write("1️⃣ **Scouting Sources:** Fetching latest research from ArXiv & Semantic Scholar...")
+                st.write("1️⃣ **Scouting Sources:** Fetching latest research from Sources...")
                 start_time = time.time()
                 fetcher = IntelligentMultiSourceFetcher()
-                # Pass a 'silent' flag or remove st.write inside fetch_papers to avoid duplicate logs
                 papers = fetcher.fetch_papers(query, sources, papers_per_source)
                 fetch_time = time.time() - start_time
 
                 if len(papers) == 0:
-                    status.update(label="❌ No papers found! Try different keywords or sources.", state="error")
+                    status.update(label="❌ No papers found! Try distinct keywords.", state="error")
                     st.session_state.processing = False
                     st.stop()
 
                 # Step 2: Filtering
-                st.info("3️⃣ **Smart Filter:** Removing duplicates and irrelevant results...")
+                st.write("3️⃣ **Smart Filter:** Removing duplicates and irrelevant results...")
                 valid_papers = []
                 for p in papers:
                     # 1. Compute Score
                     score = compute_relevance_embedding_score(query, p)
-                    p['relevance_score'] = round(score, 3)
-                    
+                    p['relevance_score'] = round(score, 3)                    
                     # 2. Strict Filter (Threshold 0.35)
                     # This drops random/irrelevant papers entirely
                     if score >= 0.35: 
                         valid_papers.append(p)
 
                 if not valid_papers:
-                    st.warning("Papers were found, but none matched your query sufficiently. Try broader terms.")
+                    status.update(label="⚠️ No relevant papers found after filtering.", state="error")
+                    st.warning("Try broader terms or check spelling.")
                     st.session_state.processing = False
                     st.stop()
                 
                 # 3. Sort by Relevance + Year (Newest & Most Relevant first)
                 valid_papers.sort(key=lambda x: (x.get('relevance_score', 0.0), x.get('year') or 0), reverse=True)
-                st.info(f"Processing {len(valid_papers)} highly relevant papers (Filtered from {len(papers)})")
+                st.info(f"Processing {len(valid_papers)} highly relevant papers...")
+                
                 summarizer_instance = st.session_state.summarizer
 
-                # Helper function (Keep as is)
                 def process_single_paper(p):
                     summary = summarizer_instance.summarize_paper(p, use_full_text=True, query=query)
                     p['ai_summary'] = summary if isinstance(summary, dict) else {"summary": str(summary)}
-                    
-                    # Determine Status from the Summary Result
                     p['accessibility'] = summary.get('accessibility') if isinstance(summary, dict) else 'inaccessible'
                     p['abstract_summary_status'] = summary.get('abstract_summary_status', 'inaccessible') if isinstance(summary, dict) else 'inaccessible'
                     return p
-
-                with st.spinner("3️⃣ **Deep Reading:** Generating comprehensive summaries for the best matches..."):
+                
+                # Step 4: Summary Generation
+                with st.spinner("3️⃣ **Deep Reading:** Generating AI summaries..."):
                     starttime = time.time()
                     papers_data = []
                     full_text_papers = []
@@ -1237,10 +1232,8 @@ with st.sidebar:
 
                     # PARALLEL EXECUTION (Max 3 workers to respect rate limits)
                     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                        # Map the function to the papers
                         results = list(executor.map(process_single_paper, valid_papers))
 
-                    # Sort results into accessible vs restricted
                     for paper in results:
                         if paper.get('accessibility') == 'accessible':
                             papers_data.append(paper)
@@ -1251,23 +1244,25 @@ with st.sidebar:
 
                     # Save timings and state
                     summarytime = time.time() - starttime
-                    st.success(f"Processed {len(papers)} papers, generated {len(papers_data)} accessible summaries in {summarytime:.1f}s")
                     status.update(label="✅ Research Analysis Complete!", state="complete", expanded=False)
-                    # Persist into session state as required by UI (papers_data = non-restricted)  
+
+                    # Update State 
                     st.session_state.papers_data = papers_data
                     st.session_state.full_text_papers = full_text_papers
                     st.session_state.suggested_papers = suggested_papers
                     st.session_state.clusters = {}
                     st.session_state.processing = False
                         
-                st.balloons()
+                    st.balloons()
+                    st.rerun()
                     
             except Exception as e:
+                status.update(label="❌ An error occurred during analysis.", state="error")
                 st.error(f"Error during analysis: {str(e)}")
                 st.session_state.processing = False
 
-    # Clear Results Button
-    if st.button("Clear Results", type="secondary"):
+    # Handle Clear Logic
+    if clear_btn:
         st.session_state.papers_data = []
         st.session_state.full_text_papers = []
         st.session_state.suggested_papers = []
@@ -1275,9 +1270,11 @@ with st.sidebar:
         st.session_state.current_page = 1  # Reset pagination
         st.rerun()
     
-    # Clean footer
+    # Footer
     st.markdown("---")
-    st.markdown("*Intelligent research with content extraction*")
+    if not BEAUTIFULSOUP_AVAILABLE:
+        st.caption("⚠️ **Note:** Install `beautifulsoup4` for better web scraping.")
+    st.caption("© 2025 Intelligent Research Assistant")
 
 # ==================== MAIN CONTENT ====================
 if st.session_state.papers_data:
