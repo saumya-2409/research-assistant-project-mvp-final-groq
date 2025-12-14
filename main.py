@@ -1116,6 +1116,7 @@ with st.sidebar:
     )
     
     st.markdown("### 📚 Data Sources")
+    st.caption("Select at least one source to fetch papers from.")
 
     # Create two columns for the checkboxes
     col_arxiv, col_semantic = st.columns(2)
@@ -1128,7 +1129,7 @@ with st.sidebar:
     with col_semantic:
         use_semantic = st.checkbox("Semantic Scholar", value=True) 
 
-    st.caption("Select at least one source to fetch papers from.")
+    
 
     st.markdown("### ⚙️ Configuration")
     papers_per_source = st.slider(
