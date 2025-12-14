@@ -1048,35 +1048,9 @@ def render_suggested_paper(paper: Dict):
     </div>
     """, unsafe_allow_html=True)
 
-
-
 # ==================== MAIN APPLICATION ====================
-# --- SESSION STATE SETUP ---
-def init_session_state():
-    """Initialize all session state variables safely."""
-    defaults = {
-        'papers_data': [],
-        'full_text_papers': [],
-        'suggested_papers': [],
-        'clusters': {},
-        'processing': False,
-        'current_page': 1,
-        'summarizer': None 
-    }
-    for key, val in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
 
-    # Initialize Summarizer Singleton if missing
-    if st.session_state.summarizer is None:
-        try:
-            st.session_state.summarizer = FullPaperSummarizer()
-        except Exception:
-            pass # Handle gracefully in main logic if needed
-
-init_session_state()
-
-# --- HEADER ---
+# Beautiful Header
 st.markdown("""
 <div class="main-header">
     <h1>AI Research Assistant</h1>
@@ -1084,7 +1058,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR CONFIGURATION ---
+# Enhanced Sidebar
 with st.sidebar:
     st.markdown("### 🔍 Research Parameters")
     
@@ -1095,26 +1069,31 @@ with st.sidebar:
     )
     
     st.markdown("### 📚 Data Sources")
+    st.caption("Select at least one source to fetch papers from.")
+
+    # Create two columns for the checkboxes
     col_arxiv, col_semantic = st.columns(2)
+
     with col_arxiv:
-        use_arxiv = st.checkbox("arXiv", value=True, disabled=not ARXIV_AVAILABLE)   
+        use_arxiv = st.checkbox("arXiv", value=True)
+        if use_arxiv and not ARXIV_AVAILABLE:
+            st.error("⚠️ ArXiv library missing!")
+            
     with col_semantic:
         use_semantic = st.checkbox("Semantic Scholar", value=True) 
 
     
+
     st.markdown("### ⚙️ Configuration")
     papers_per_source = st.slider(
-        "**Papers per Source**",
-        min_value=10, 
-        max_value=100, 
-        value=30, 
-        step=10,
+        "**Papers to Fetch (per source)**",
+        min_value=10, max_value=100, value=30, step=10,
         help="Higher values provide more comprehensive results but take longer to process."
     )
     
     # Build source list
     sources = []
-    if use_arxiv and ARXIV_AVAILABLE: sources.append('arxiv')
+    if use_arxiv: sources.append('arxiv')
     if use_semantic: sources.append('semantic_scholar')
     
     if sources:
@@ -1123,8 +1102,9 @@ with st.sidebar:
     else:
         st.error("❌ Please select at least one source!")
     
-    # Action Buttons
+    # --- Buttons Layout (Side-by-Side) ---
     col_start, col_clear = st.columns(2)
+
     with col_start:
         # Start Analysis Button
         start_btn = st.button(
@@ -1144,11 +1124,12 @@ with st.sidebar:
             help="Reset all results and start fresh."
         )
 
-    # --- MAIN EXECUTION FLOW ---
+    # --- Logic Handling ---
+    
+    # Handle Start Logic
     if start_btn:
         if query.strip() and sources:
             st.session_state.processing = True
-            st.session_state.current_page = 1
         
         # Create the status container
         with st.status("🚀 Initiating Research Sequence...", expanded=True) as status:
@@ -1158,15 +1139,15 @@ with st.sidebar:
                 start_time = time.time()
                 fetcher = IntelligentMultiSourceFetcher()
                 papers = fetcher.fetch_papers(query, sources, papers_per_source)
+                fetch_time = time.time() - start_time
 
-                if not papers:
-                    status.update(label="❌ No papers found.", state="error")
-                    st.error("No papers found. Try different keywords.")
+                if len(papers) == 0:
+                    status.update(label="❌ No papers found! Try distinct keywords.", state="error")
                     st.session_state.processing = False
                     st.stop()
 
                 # Step 2: Filtering
-                st.write("3️⃣ **Smart Filter:** Applying relevance filters...")
+                st.write("3️⃣ **Smart Filter:** Removing duplicates and irrelevant results...")
                 valid_papers = []
                 for p in papers:
                     # 1. Compute Score
@@ -1177,19 +1158,15 @@ with st.sidebar:
                     if score >= 0.35: 
                         valid_papers.append(p)
 
-                # 3. Sort: High relevance + Recent year
-                valid_papers.sort(key=lambda x: (x.get('relevance_score', 0.0), x.get('year', 0)), reverse=True)
-                
-
                 if not valid_papers:
                     status.update(label="⚠️ No relevant papers found after filtering.", state="error")
                     st.warning("Try broader terms or check spelling.")
                     st.session_state.processing = False
                     st.stop()
-                    
+                
+                # 3. Sort by Relevance + Year (Newest & Most Relevant first)
+                valid_papers.sort(key=lambda x: (x.get('relevance_score', 0.0), x.get('year') or 0), reverse=True)
                 st.info(f"Processing {len(valid_papers)} highly relevant papers...")
-                
-                
                 
                 summarizer_instance = st.session_state.summarizer
 
