@@ -1549,9 +1549,9 @@ else:
     
     st.markdown("### Example Results")
     st.markdown("**Query:** `deep learning transformers` ")
-    st.markdown("**Query:** **Expected:** 60-300 papers ")
-    st.markdown("**Query:** *Intelligent Analysis:** Content extraction, access detection, enhanced summaries ")
-    st.markdown("**Query:** **Time:** 30-90 seconds ")
+    st.markdown("**Expected:** 60-300 papers ")
+    st.markdown("**Intelligent Analysis:** Content extraction, access detection, enhanced summaries ")
+    st.markdown("**Time:** 30-90 seconds ")
 
 # Clean footer
 if not st.session_state.processing:
