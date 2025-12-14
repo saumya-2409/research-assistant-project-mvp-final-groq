@@ -967,7 +967,7 @@ def render_paper_ui(paper: dict):
 
         
         #new UI - dashboard like
-        col_left, col_right = st.columns([1.5, 1], gap="medium")
+        col_left, col_right = st.columns(2, gap="medium")
         with col_left:
             st.subheader("🎯 Research Goal")
 
