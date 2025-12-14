@@ -1064,32 +1064,6 @@ def render_paper_ui(paper: dict):
 
 def render_suggested_paper(paper: Dict):
     """Render truly restricted paper card"""
-
-    # --- CHANGE STARTS HERE: Dynamic Reason ---
-    reason = "Requires Subscription Access"
-    if paper.get("abstract_summary_status") == "empty_summary":
-        reason = "Content Unavailable for Analysis"
-    
-    '''
-    st.markdown(f"""
-    <div class="suggested-card">
-        <h4 style="margin-bottom: 0.5rem; color: #1e293b;">{paper.get('title', 'Unknown Title')}</h4>
-        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 0.8rem;">
-            <strong>Authors:</strong> {', '.join(paper.get('authors', ['Unknown'])[:3])}
-            {' et al.' if len(paper.get('authors', [])) > 3 else ''}<br>
-            <strong>Source:</strong> {paper.get('source', 'Unknown')} | 
-            <strong>Year:</strong> {paper.get('year', 0)} | 
-            <strong>Citations:</strong> {paper.get('citations', 0)}
-        </p>
-        <span style="color: #ef4444; font-size: 0.85rem; font-weight: 500;">🔒 {reason}</span>
-        <br><br>
-        <a href="{paper.get('url', '#')}" target="_blank" style="color: #667eea; text-decoration: none; font-weight: 500;">
-             Visit Source Page →
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
-    # --- CHANGE ENDS HERE ---
-    '''
     
     st.markdown(f"""
     <div class="suggested-card">
