@@ -956,7 +956,9 @@ def render_paper_ui(paper: dict):
        
         # Top Row: Metadata Badges
         c1, c2, c3 = st.columns([1, 1, 2])
-        c1.markdown(f"**📅 Year:** {year}")
+        with c1:
+            st.caption("📅 **Year**")
+            st.write(f"{paper.get('year', 'N/A')}")
         c2.markdown(f"**🎓 Citations:** {cites}")
         c3.markdown(f"**🏛️ Source:** {source}")
         st.markdown(f"**✍️ Authors:** {authors}")
