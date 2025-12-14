@@ -959,21 +959,7 @@ def render_paper_ui(paper: dict):
     # --- 2. UI Render ---
     with st.expander(f"{status_emoji} {title}", expanded=False):
 
-        # --- A. Header Badges ---
-        st.markdown(f"""
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
-            <span style="background-color: #e0f2fe; color: #0284c7; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">📅 {paper.get('year', 'N/A')}</span>
-            <span style="background-color: #f0fdf4; color: #16a34a; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">🎓 {paper.get('citations', 0)} Citations</span>
-            <span style="background-color: #f3f4f6; color: #4b5563; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: 600;">🏛️ {source}</span>
-        </div>
-        <div style="color: #64748b; font-size: 0.9rem; margin-bottom: 15px;">✍️ <em>{author_str}</em></div>
-        """, unsafe_allow_html=True)
-        
-        if is_abstract_only:
-            st.markdown("""<span style="background: #fef3c7; color: #b45309; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">⚡ Generated from Abstract (Full Text Unavailable)</span>""", unsafe_allow_html=True)
-        else:
-            st.markdown("""<span style="background: #dcfce7; color: #15803d; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">📄 Full Content Analysis</span>""", unsafe_allow_html=True)
-                
+    
         year = safe_str(paper.get("year") or (paper.get("ai_summary") or {}).get("Year",""))
         cites = safe_str(paper.get("citations") or paper.get("citation_count") or (paper.get("ai_summary") or {}).get("Citations",""))
         source = safe_str(paper.get("source") or paper.get("fetch_source") or (paper.get("ai_summary") or {}).get("Source",""))
