@@ -959,10 +959,10 @@ def render_paper_ui(paper: dict):
         c1.markdown(f"**📅 Year:** {year}")
         c2.markdown(f"**🎓 Citations:** {cites}")
         c3.markdown(f"**🏛️ Source:** {source}")
-        c4.markdown(f"**✍️ Authors:** {len(authors_list)}")
+        c4.markdown(f"**✍️ Authors:** {len(authors)}")
 
         st.divider()
-        
+
         # Display Metadata
         st.caption(f"**Authors:** {authors} | **Source:** {source} | **Year:** {year} | **Citations:** {cites}")
         
