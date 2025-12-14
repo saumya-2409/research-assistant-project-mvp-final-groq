@@ -942,6 +942,7 @@ def render_paper_ui(paper: dict):
         else:
             st.markdown("""<span style="background: #dcfce7; color: #15803d; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">📄 Full Content Analysis</span>""", unsafe_allow_html=True)
         
+        
         # 2. Metadata Columns
         authors_list = paper.get("authors") or (paper.get("ai_summary") or {}).get("Authors") or []
         if isinstance(authors_list, list):
@@ -949,9 +950,18 @@ def render_paper_ui(paper: dict):
         else:
             authors = safe_str(authors_list)
 
-        source = safe_str(paper.get("source") or paper.get("fetch_source") or (paper.get("ai_summary") or {}).get("Source",""))
         year = safe_str(paper.get("year") or (paper.get("ai_summary") or {}).get("Year",""))
         cites = safe_str(paper.get("citations") or paper.get("citation_count") or (paper.get("ai_summary") or {}).get("Citations",""))
+        source = safe_str(paper.get("source") or paper.get("fetch_source") or (paper.get("ai_summary") or {}).get("Source",""))
+       
+        # Top Row: Metadata Badges
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(f"**📅 Year:** {year}")
+        c2.markdown(f"**🎓 Citations:** {cites}")
+        c3.markdown(f"**🏛️ Source:** {source}")
+        c4.markdown(f"**✍️ Authors:** {len(authors_list)}")
+
+        st.divider()
         
         # Display Metadata
         st.caption(f"**Authors:** {authors} | **Source:** {source} | **Year:** {year} | **Citations:** {cites}")
