@@ -803,26 +803,6 @@ class IntelligentMultiSourceFetcher:
         """Show detailed source breakdown"""
         st.markdown("---")
         
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            arxiv_count = source_results.get('arxiv', 0)
-            st.markdown(f"""
-            <div class="source-status">
-            <strong>ArXiv</strong><br>
-            {arxiv_count} papers
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            semantic_count = source_results.get('semantic_scholar', 0)
-            st.markdown(f"""
-            <div class="source-status">
-            <strong>Semantic Scholar</strong><br>
-            {semantic_count} papers
-            </div>
-            """, unsafe_allow_html=True)
-        
         duplicates_removed = total_before - total_after
         st.info(f"**Final Summary:** {total_before} papers fetched, {total_after} unique papers (removed {duplicates_removed} duplicates)")
 
