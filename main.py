@@ -1029,7 +1029,7 @@ def render_paper_ui(paper: dict):
 
         with r3c2:
             if limitations:
-                with st.container():
+                with st.container(border=True):
                     st.warning(f"**⚠️ Limitations & Future Work**")
                     if isinstance(limitations, list):
                         for l in limitations: st.markdown(f"- {l}")
