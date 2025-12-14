@@ -967,25 +967,25 @@ def render_paper_ui(paper: dict):
 
         
         #new UI - dashboard like
-        col_left, col_right = st.columns(2, gap="medium")
-        with col_left:
-            st.subheader("🎯 Research Goal")
-
+        r1c1, r1c2 = st.columns(2, gap="medium")
+        with r1c1:
             # Problem Statement
             problem = summary.get("Research_Problem") or summary.get("problem_statement") or summary.get("Purpose") or ""
             if problem:
+                st.markdown("#### 1️⃣ Problem Statement")
                 maybe_write_subheading(1, "Problem Statement", "What?")
                 st.write(problem)
 
+        with r1c2:
             # Objective
             objective = summary.get("Research_Objective") or summary.get("objective") or ""
             if objective:
+                st.markdown("#### 2️⃣ Research Objective")
                 maybe_write_subheading(2, "Research Objective", "Why / Goal?")
                 st.write(objective)
-        
-        with col_right:
-            st.subheader("⚙️ Methodology")
 
+        r2c1, r2c2 = st.columns(2, gap="medium")
+        with r2c1:
             # Methodology
             mma = summary.get("Methodology_Approach") or {}
             method = mma.get("Method") if isinstance(mma, dict) else summary.get("Methodology_Approach", {}).get("Method") or ""
@@ -998,8 +998,9 @@ def render_paper_ui(paper: dict):
                 if method: st.markdown(f"- **Method:** {method}")
                 if process: st.markdown(f"- **Process:** {process}")
                 if data_handling: st.markdown(f"- **Data handling:** {data_handling}")
-                if results_format: st.markdown(f"- **Results format:** {results_format}")
-
+                if results_format: st.markdown(f"- **Results format:** {results_format}")       
+        
+        with r2c2:
             # Key Findings
             findings = summary.get("Key_Findings") or summary.get("key_findings") or []
             if isinstance(findings, str): findings = [findings]
@@ -1009,12 +1010,15 @@ def render_paper_ui(paper: dict):
                 for f in findings:
                     st.markdown(f"- {f}")
 
+        r3c1, r3c2 = st.columns(2, gap="medium")
+        with r3c1:
             # Implications
             implications = summary.get("Aim_of_Study") or summary.get("reusability_practical_value") or ""
             if implications:
                 maybe_write_subheading(5, "Implications / Practical value", "")
                 st.write(implications)
 
+        with r3c2:
             # Limitations
             limitations = summary.get("limitations_and_future_work") or summary.get("limitations") or []
             if limitations:
@@ -1023,7 +1027,7 @@ def render_paper_ui(paper: dict):
                     for l in limitations: st.markdown(f"- {l}")
                 else:
                     st.write(limitations)
-
+                       
         # Keywords
         keywords = summary.get("Keywords") or paper.get("keywords") or []
         if isinstance(keywords, str) and keywords.strip():
