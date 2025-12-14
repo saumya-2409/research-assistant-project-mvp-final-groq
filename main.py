@@ -706,8 +706,6 @@ class IntelligentMultiSourceFetcher:
         all_papers = []
         source_results = {}
         
-        st.write("1️⃣ **Scouting Sources:** Fetching latest research from ArXiv & Semantic Scholar...")
-
         # --- FIX: PARALLEL FETCHING ---
         # We define a helper function to run a single fetcher
         def run_fetcher(source_name):
@@ -800,9 +798,7 @@ class IntelligentMultiSourceFetcher:
         return unique_papers
     
     def _show_source_breakdown(self, source_results: Dict, total_before: int, total_after: int):
-        """Show detailed source breakdown"""
-        st.markdown("---")
-        
+        """Show detailed source breakdown"""        
         duplicates_removed = total_before - total_after
         st.info(f"**Final Summary:** {total_before} papers fetched, {total_after} unique papers (removed {duplicates_removed} duplicates)")
 
@@ -1133,7 +1129,7 @@ with st.sidebar:
 
             try:
                 # Step 1: Fetching
-                st.write("1️⃣ **Scouting Sources:** Querying ArXiv & Semantic Scholar APIs...")
+                st.write("1️⃣ **Scouting Sources:** Fetching latest research from ArXiv & Semantic Scholar...")
                 start_time = time.time()
                 fetcher = IntelligentMultiSourceFetcher()
                 # Pass a 'silent' flag or remove st.write inside fetch_papers to avoid duplicate logs
