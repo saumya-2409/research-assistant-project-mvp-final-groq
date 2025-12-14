@@ -922,7 +922,10 @@ def render_paper_ui(paper: dict):
     
     #Header 
     title = safe_str(paper.get("title") or (paper.get("ai_summary") or {}).get("Title") or "Research Paper Summary")
-    
+    year = safe_str(paper.get("year") or (paper.get("ai_summary") or {}).get("Year",""))
+    cites = safe_str(paper.get("citations") or paper.get("citation_count") or (paper.get("ai_summary") or {}).get("Citations",""))
+    source = safe_str(paper.get("source") or paper.get("fetch_source") or (paper.get("ai_summary") or {}).get("Source",""))
+       
     # Status Badges
     is_abstract_only = paper.get("abstract_summary_status") == "generated_from_abstract"
     status_emoji = "⚡" if is_abstract_only else "📄"
@@ -959,65 +962,81 @@ def render_paper_ui(paper: dict):
     # --- 2. UI Render ---
     with st.expander(f"{status_emoji} {title}", expanded=False):
 
-    
-        year = safe_str(paper.get("year") or (paper.get("ai_summary") or {}).get("Year",""))
-        cites = safe_str(paper.get("citations") or paper.get("citation_count") or (paper.get("ai_summary") or {}).get("Citations",""))
-        source = safe_str(paper.get("source") or paper.get("fetch_source") or (paper.get("ai_summary") or {}).get("Source",""))
-       
+        # --- A. Header Badges ---
+        if is_abstract_only:
+            st.markdown("""<span style="background: #fef3c7; color: #b45309; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">⚡ Generated from Abstract (Full Text Unavailable)</span>""", unsafe_allow_html=True)
+        else:
+            st.markdown("""<span style="background: #dcfce7; color: #15803d; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">📄 Full Content Analysis</span>""", unsafe_allow_html=True)
+                
+ 
         # Top Row: Metadata Badges
         c1, c2, c3 = st.columns([1, 1, 2])
         c1.markdown(f"**📅 Year:** {year}")
         c2.markdown(f"**🎓 Citations:** {cites}")
         c3.markdown(f"**🏛️ Source:** {source}")
-        
         st.markdown(f"**✍️ Authors:** {authors}")
         st.divider()
 
-        #new UI - dashboard like
+        # --- B. The 6-Block Grid ---
+
+        # ROW 1: The "Why" (Context & Goal)
         r1c1, r1c2 = st.columns(2, gap="medium")
         with r1c1:
+            #Problem Statement
             if problem:
-                st.markdown("#### 1️⃣ Problem Statement")
-                st.write(problem)
+                st.info(f"**🧐 Problem Statement**\n\n{problem}")
+            else:
+                st.info("**🧐 Problem Statement**\n\n*Not explicitly extracted.*")
 
         with r1c2:
             # Objective
             if objective:
-                st.markdown("#### 2️⃣ Research Objective")
-                st.write(objective)
+                st.success(f"**🎯 Research Objective**\n\n{objective}")
+            else:
+                st.success("**🎯 Research Objective**\n\n*Not explicitly extracted.*")
 
+        # ROW 2: The "What" (Method & Findings)
         r2c1, r2c2 = st.columns(2, gap="medium")
         with r2c1:
-            # Methodology            
-            if method or process or data_handling or results_format:
-                st.markdown("#### 3️⃣ Methodology")
-                if method: st.markdown(f"- **Method:** {method}")
-                if process: st.markdown(f"- **Process:** {process}")
-                if data_handling: st.markdown(f"- **Data handling:** {data_handling}")
-                if results_format: st.markdown(f"- **Results format:** {results_format}")       
-        
+            # Methodology 
+            with st.container(border=True):   
+                st.markdown("#### ⚙️ Methodology")                    
+                if method or process or data_handling or results_format:
+                    if method: st.markdown(f"- **Method:** {method}")
+                    if process: st.markdown(f"- **Process:** {process}")
+                    if data_handling: st.markdown(f"- **Data handling:** {data_handling}")
+                    if results_format: st.markdown(f"- **Results format:** {results_format}")       
+                else:
+                    st.write(str(mma) if mma else "No details extracted.")
         with r2c2:
-            # Key Findings
-            if findings:
-                st.markdown("#### 4️⃣ Key Findings")
-                for f in findings:
-                    st.markdown(f"- {f}")
-
+            with st.container(border=True):
+                st.markdown("#### 💡 Key Findings")
+                if findings:
+                    for f in findings:
+                        st.markdown(f"- {f}")
+                else:
+                    st.write("No specific findings extracted.")
+        
+        # ROW 3: The "So What" (Value & Limits)
         r3c1, r3c2 = st.columns(2, gap="medium")
         with r3c1:
-            # Implications
-            if implications:
-                st.markdown("#### 5️⃣ Implications / Value")
-                st.write(implications)
+            with st.container(border=True):
+                st.markdown("#### 🚀 Implications & Value")
+                if implications:
+                    st.write(implications)
+                else:
+                    st.caption("No specific implications extracted.")
 
         with r3c2:
-            # Limitations
             if limitations:
-                st.markdown("#### 6️⃣ Limitations & Future")
-                if isinstance(limitations, list):
-                    for l in limitations: st.markdown(f"- {l}")
-                else:
-                    st.write(limitations)
+                with st.container():
+                    st.warning(f"**⚠️ Limitations & Future Work**")
+                    if isinstance(limitations, list):
+                        for l in limitations: st.markdown(f"- {l}")
+                    else:
+                        st.write(limitations)
+            else:
+                st.caption("No limitations extracted.")
                        
         # Keywords
         keywords = summary.get("Keywords") or paper.get("keywords") or []
@@ -1026,14 +1045,15 @@ def render_paper_ui(paper: dict):
         elif isinstance(keywords, list) and keywords:
             st.caption(f"**Keywords:** {', '.join([str(k) for k in keywords[:20]])}")
 
-        # 4. Access Buttons
+        
+        # --- C. Action Buttons ---
         st.markdown("---")
         col1, col2, col3 = st.columns(3)
 
         
         if working_url:
             access_type = paper.get('access_type', 'direct')
-            button_label = "Access Paper (PDF)" if access_type == 'direct_pdf' else "Access Full Paper"
+            button_label = "🔗 Access Paper (PDF)" if access_type == 'direct_pdf' else "🔗 Access Full Paper"
             
             with col1:
                 if st.button(button_label, key=f"btn_{working_url}"):
@@ -1042,7 +1062,7 @@ def render_paper_ui(paper: dict):
         # Direct PDF fallback
         if pdf_url and pdf_url != working_url:
             with col2:
-                if st.button("Direct PDF Download", key=f"pdf_{paper.get('id', 'unknown')}"):
+                if st.button("📥 Direct PDF Download", key=f"pdf_{paper.get('id', 'unknown')}"):
                     webbrowser.open_new_tab(pdf_url)
 
 def render_suggested_paper(paper: Dict):
