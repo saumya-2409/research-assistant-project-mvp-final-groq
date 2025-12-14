@@ -1107,15 +1107,17 @@ st.markdown("""
 
 # Enhanced Sidebar
 with st.sidebar:
-    st.markdown("### Search")
+    st.markdown("### 🔍 Research Parameters")
     
     query = st.text_input(
-        "Enter Research Topic",
-        placeholder="e.g., machine learning transformers",
-        help="Enter research topics for analysis"
+        "Research Topic",
+        placeholder="e.g., Generative AI in Healthcare",
+        help="Enter the specific topic you want to analyze"
     )
+
+    st.divider()
     
-    st.markdown("### Sources")
+    st.markdown("### 📚 Data Sources")
 
     # Create two columns for the checkboxes
     col_arxiv, col_semantic = st.columns(2)
@@ -1123,10 +1125,13 @@ with st.sidebar:
     with col_arxiv:
         use_arxiv = st.checkbox("arXiv", value=True)
         if use_arxiv and not ARXIV_AVAILABLE:
-            st.error("ArXiv library missing! Install: `pip install arxiv`")
+            st.error("⚠️ ArXiv library missing!")
             
     with col_semantic:
         use_semantic = st.checkbox("Semantic Scholar", value=True) 
+
+    st.caption("Select at least one source to fetch papers from.")
+    st.divider()
     
     st.markdown("### Number of Papers")
     papers_per_source = st.slider(
