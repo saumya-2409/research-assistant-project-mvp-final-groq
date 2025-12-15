@@ -11,26 +11,7 @@ from urllib.parse import urljoin
 
 from config import SEMANTIC_SCHOLAR_API_KEY
 from utils import deduplicate_papers
-
-# Optional Imports
-try:
-    import arxiv
-    ARXIV_AVAILABLE = True
-except ImportError:
-    ARXIV_AVAILABLE = False
-
-try:
-    from PyPDF2 import PdfReader
-    PYPDF_AVAILABLE = True
-except ImportError:
-    PYPDF_AVAILABLE = False
-
-try:
-    from bs4 import BeautifulSoup
-    BEAUTIFULSOUP_AVAILABLE = True
-except ImportError:
-    BEAUTIFULSOUP_AVAILABLE = False
-
+from dependencies import ARXIV_AVAILABLE, BEAUTIFULSOUP_AVAILABLE,PYPDF_AVAILABLE
 
 # ==================== INTELLIGENT PAPER ACCESS DETECTOR ====================
 class IntelligentPaperAccessor:
