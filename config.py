@@ -1,6 +1,4 @@
-# File: src/config.py
 import os
-import streamlit as st
 from dotenv import load_dotenv
 
 # Load .env for local development
@@ -12,10 +10,15 @@ def get_api_key(key_name):
     1. Streamlit Secrets (Cloud)
     2. Environment Variables (Local/GitHub)
     """
+    # Try getting from environment first (better for non-Streamlit contexts)
+    key = os.getenv(key_name)
+    if key:
+        return key
     try:
-        return st.secrets[key_name]
-    except (FileNotFoundError, AttributeError, KeyError):
-        return os.getenv(key_name)
+        import streamlit as st
+        return st.secrets.get(key_name)
+    except ImportError:
+        return None
 
 # --- Configuration Constants ---
 GROQ_API_KEY = get_api_key("GROQ_API_KEY")
