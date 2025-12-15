@@ -9,27 +9,6 @@ from typing import Dict, Any, Optional, Tuple
 from groq import Groq, RateLimitError
 import streamlit as st
 
-# --- 1. ROBUST IMPORTS & DEFAULTS ---
-try:
-    import PyPDF2
-    PYPDF_AVAILABLE = True
-except ImportError:
-    PYPDF_AVAILABLE = False
-
-# Try to import constants from config, but set defaults if that fails
-try:
-    from config import MODEL_NAME, MAX_CONTEXT_CHARS, GROQ_API_KEY
-except ImportError:
-    MODEL_NAME = "llama-3.1-8b-instant"
-    MAX_CONTEXT_CHARS = 15000
-    GROQ_API_KEY = None
-
-# Double-check defaults exist in local scope to prevent NameError
-if 'MODEL_NAME' not in locals():
-    MODEL_NAME = "llama-3.1-8b-instant"
-if 'MAX_CONTEXT_CHARS' not in locals():
-    MAX_CONTEXT_CHARS = 15000
-
 # Setup logging
 logger = logging.getLogger(__name__)
 if not logger.handlers:
