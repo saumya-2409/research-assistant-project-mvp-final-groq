@@ -1,456 +1,365 @@
+"""
+fetchers.py
+
+Minimal, production-oriented fetchers for:
+  - arXiv (via `arxiv` package)
+  - Semantic Scholar (via their public REST Graph API)
+
+This version:
+  - Only provides arXiv and Semantic Scholar sources (everything else removed)
+  - DOES NOT fabricate data (no random citation counts)
+  - Enriches arXiv papers with Semantic Scholar citationCount and openAccessPdf when available
+  - Uses a HARD-CODED Semantic Scholar API key (WARNING: insecure; see notes below)
+  - Returns standardized paper dicts via BaseFetcher._standardize_paper
+
+Replace SEMANTIC_SCHOLAR_API_KEY value with your actual key if you requested a hard-coded key.
+**Security note**: Hardcoding API keys is insecure. Prefer environment variables. Rotate key if it was ever committed.
+"""
+
 import time
-import random
 import requests
-import concurrent.futures
-import io  # For BytesIO
-import streamlit as st
+from typing import List, Dict
 from datetime import datetime
-from typing import List, Dict, Optional
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+import arxiv  # pip install arxiv
 
-from config import SEMANTIC_SCHOLAR_API_KEY
-from utils import deduplicate_papers
-from dependencies import ARXIV_AVAILABLE, BEAUTIFULSOUP_AVAILABLE,PYPDF_AVAILABLE
+# HARD-CODED API KEY (replace)
+# WARNING: hardcoding keys is insecure. Use env vars in production.
+SEMANTIC_SCHOLAR_API_KEY = "DiHAxNAV2Q9BrBDSeGK2W3r5dqegv4S86gdaD70Z"
 
-# ==================== INTELLIGENT PAPER ACCESS DETECTOR ====================
-class IntelligentPaperAccessor:
-    """Intelligently detects and accesses papers from various sources"""
-    
+# Semantic Scholar base
+SEMANTIC_BASE = "https://api.semanticscholar.org/graph/v1"
+SEMANTIC_HEADERS = {"x-api-key": SEMANTIC_SCHOLAR_API_KEY} if SEMANTIC_SCHOLAR_API_KEY else {}
+
+# Base fetcher + utilities
+class BaseFetcher:
+    """Base class for fetchers returning standardized paper dicts."""
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        })
-    
-    def check_and_extract_paper_content(self, paper: Dict) -> Dict:
-        paper = paper.copy()
-        access_methods = []
-        pdf_url = paper.get('pdf_url')
-        if pdf_url:
-            access_methods.append(('direct_pdf', pdf_url))
-        paper_url = paper.get('url', '')
-        if paper_url:
-            access_methods.append(('paper_landing', paper_url))  # For indirect links
-        semantic_id = paper.get('semantic_scholar_id')
-        if semantic_id:
-            access_methods.append(('semantic_alternative', f"https://www.semanticscholar.org/paper/{semantic_id}"))
-        doi = paper.get('doi', '')
-        if doi:
-            access_methods.append(('doi_pdf', f"https://doi.org/{doi}"))  # DOI resolver
-        extracted_content = None
-        working_url = None
-        access_type = None
-        for method_name, url in access_methods:
-            try:
-                content = self.try_extract_content(url, method_name)
-                if content and len(content) > 200:
-                    extracted_content = content[:3000]  # Your length limit
-                    working_url = url
-                    access_type = method_name
-                    break
-            except:
-                continue
-        if extracted_content:
-            paper['extracted_content'] = extracted_content
-            paper['working_url'] = working_url
-            paper['access_type'] = access_type
-            paper['pdf_available'] = True
-        return paper
+        self.name = "base"
+        self.rate_limit = 1.0  # seconds between requests
 
-    def try_extract_content(self, url: str, method_name: str) -> Optional[str]:
-        try:
-            response = self.session.get(url, timeout=10, allow_redirects=True)
-            if response.status_code != 200:
-                return None
-            content_type = response.headers.get('Content-Type', '').lower()
-            if 'application/pdf' in content_type:
-                content_len = len(response.content)
-                if content_len < 500 * 1024:  # Small PDF limit
-                    if PYPDF_AVAILABLE:
-                        try:
-                            reader = PdfReader(io.BytesIO(response.content))
-                            text = ''
-                            for page in reader.pages[:5]:
-                                text += (page.extract_text() or '') + '\n'
-                            text = text.strip()[:4000]
-                            if len(text) > 200:
-                                return text
-                        except Exception:
-                            pass
-                    return f"PDF content available ({content_len / 1024:.0f} KB) - Install pypdf for extraction: pip install pypdf"
-                return f"PDF content available for download ({content_len / 1024:.0f} KB)"
-            elif 'text/html' in content_type:
-                if not BEAUTIFULSOUP_AVAILABLE:
-                    return "HTML content (install BeautifulSoup for scraping: pip install beautifulsoup4)"
-                soup = BeautifulSoup(response.content, 'html.parser')
-                for tag in soup(['script', 'style']):
-                    tag.decompose()
-                pdf_links = []
-                cues = ['pdf', 'download', 'full text', 'access pdf', 'view pdf']
-                for a in soup.find_all('a', href=True, limit=20):
-                    href = a['href'].lower()
-                    text = a.get_text(strip=True).lower()
-                    if href.endswith('.pdf') or any(cue in href or cue in text for cue in cues) or 'doi.org' in href:
-                        full_href = urljoin(url, a['href'])
-                        pdf_links.append(full_href)
-                        if len(pdf_links) >= 3:
-                            break
-                for candidate in pdf_links:
-                    try:
-                        cand_resp = self.session.get(candidate, timeout=8, allow_redirects=True)
-                        if cand_resp.status_code == 200 and 'application/pdf' in cand_resp.headers.get('Content-Type', ''):
-                            content_len = len(cand_resp.content)
-                            if content_len < 500 * 1024:
-                                if PYPDF_AVAILABLE:
-                                    try:
-                                        reader = PdfReader(io.BytesIO(cand_resp.content))
-                                        text = ''
-                                        for page in reader.pages[:5]:
-                                            text += (page.extract_text() or '') + '\n'
-                                        text = text.strip()[:4000]
-                                        if len(text) > 200:
-                                            return text
-                                    except Exception:
-                                        pass
-                                return f"Indirect PDF found ({content_len / 1024:.0f} KB) - Install pypdf for extraction"
-                            return f"Indirect PDF accessed via {method_name} ({content_len / 1024:.0f} KB)"
-                    except:
-                        continue
-                # Fallback HTML extraction
-                main_content = soup.find('main') or soup.find('article') or soup.body
-                if main_content:
-                    text = main_content.get_text(separator=' ', strip=True)[:3000]
-                    if len(text) > 200:
-                        return text
-                return soup.get_text(separator=' ', strip=True)[:2000]
-            return None
-        except requests.exceptions.Timeout:
-            return "Timeout accessing content"
-        except Exception:
-            return None
-
-# ==================== REAL ARXIV FETCHER  ====================
-class ArxivFetcher:
-    """REAL ArXiv fetcher using arxiv-py library"""
-    
-    def __init__(self):
-        self.rate_limit_delay = 0.5
-        self.last_request_time = 0
-    
-    def _rate_limit(self):
-        current_time = time.time()
-        time_since_last = current_time - self.last_request_time
-        if time_since_last < self.rate_limit_delay:
-            time.sleep(self.rate_limit_delay - time_since_last)
-        self.last_request_time = time.time()
-    
-    def search_papers(self, query: str, max_results: int = 50) -> List[Dict]:
-        if not ARXIV_AVAILABLE:
-            return []
-        
-        try:
-            search_query = f"all:{query}"
-            
-            search = arxiv.Search(
-                query=search_query,
-                max_results=min(max_results, 100),
-                sort_by=arxiv.SortCriterion.SubmittedDate,
-                sort_order=arxiv.SortOrder.Descending
-            )
-            
-            papers = []
-            count = 0
-            
-            for result in arxiv.Client().results(search):
-                if count % 10 == 0:
-                    self._rate_limit()
-                
-                paper = {
-                    'id': result.entry_id,
-                    'arxiv_id': result.entry_id.split('/')[-1],
-                    'title': result.title,
-                    'abstract': result.summary[:1000] if result.summary else '',
-                    'authors': [author.name for author in result.authors],
-                    'published_date': result.published.isoformat(),
-                    'updated_date': result.updated.isoformat(),
-                    'year': int(result.published.year) if result.published else int(datetime.now().year),
-                    'month': result.published.month,
-                    'categories': result.categories,
-                    'primary_category': result.primary_category,
-                    'url': result.entry_id,
-                    'pdf_url': result.pdf_url,
-                    'doi': result.doi,
-                    'journal_ref': result.journal_ref,
-                    'source': 'arXiv',
-                    'citations': None,
-                    'pdf_available': True,
-                    'full_text': True
-                }
-                
-                papers.append(paper)
-                count += 1
-                
-                if count >= max_results:
-                    break
-            
-            return papers
-            
-        except Exception as e:
-            st.warning(f"ArXiv fetch error: {str(e)}")
-            return []
-
-# ==================== SEMANTIC SCHOLAR FETCHER WITH API KEY ====================
-class SemanticScholarFetcher:
-    """Semantic Scholar fetcher using your FREE API key - No rate limiting issues!"""
-    
-    def __init__(self):
-        self.base_url = "https://api.semanticscholar.org/graph/v1"
-        self.api_key = "DiHAxNAV2Q9BrBDSeGK2W3r5dqegv4S86gdaD70Z"  # Your free API key
-        # API rate limit: 1 request per second
-        self.rate_limit_delay = 1.0  # Exactly 1 second per request
-        self.last_request_time = 0
-        self.max_retries = 3  # Standard retries
-    
-    def _rate_limit(self):
-        """Enforce 1 request/second rate limit with small jitter"""
-        current_time = time.time()
-        time_since_last = current_time - self.last_request_time
-        if time_since_last < self.rate_limit_delay:
-            sleep_time = self.rate_limit_delay - time_since_last + random.uniform(0.1, 0.3)  # Jitter for safety
-            time.sleep(sleep_time)
-        self.last_request_time = time.time()
-    
-    def search_papers(self, query: str, max_results: int = 50) -> List[Dict]:
-        """Full search using API key - Reliable and unlimited within rate limits"""
-        
-        if not query:
-            return []
-        
-        # Use full max_results (no artificial limits)
-        max_results = min(max_results, 100)  # API allows up to 100
-        
-        for attempt in range(self.max_retries):
-            try:
-                self._rate_limit()  # 1 second delay
-                
-                search_url = f"{self.base_url}/paper/search"
-                params = {
-                    'query': query,
-                    'limit': max_results,
-                    'fields': 'paperId,title,abstract,authors,year,citationCount,url,venue,openAccessPdf,externalIds,isOpenAccess'
-                }
-                
-                headers = {
-                    'User-Agent': 'Research Assistant (B.Tech Project - Educational Use)',
-                    'Accept': 'application/json',
-                    'x-api-key': self.api_key  # Your API key here - enables 1 req/sec
-                }
-
-                response = requests.get(search_url, params=params, headers=headers, timeout=30)
-                
-                # Handle API responses
-                if response.status_code == 429:
-                    wait_time = 2 + (attempt * 2)  # Short backoff for rate limit
-                    st.warning(f"**Semantic Scholar API**: Rate limited! Waiting {wait_time}s...")
-                    time.sleep(wait_time)
-                    continue
-                
-                elif response.status_code != 200:
-                    if attempt == self.max_retries - 1:
-                        st.error(f"**Semantic Scholar API**: Failed (Status {response.status_code}). Check API key.")
-                        return []
-                    continue
-                
-                # Success
-                data = response.json()
-                papers = []
-                
-                for paper_data in data.get('data', []):
-                    if not paper_data.get('title'):
-                        continue
-                    
-                    authors = [author.get('name', 'Unknown') for author in paper_data.get('authors', [])[:5]]
-                    
-                    # PDF and open access detection
-                    pdf_url = None
-                    pdf_available = False
-                    is_open_access = paper_data.get('isOpenAccess', False)
-                    
-                    open_access_pdf = paper_data.get('openAccessPdf')
-                    if open_access_pdf and open_access_pdf.get('url'):
-                        pdf_url = open_access_pdf['url']
-                        pdf_available = True
-                    
-                    # External IDs for alternative access
-                    external_ids = paper_data.get('externalIds', {})
-                    arxiv_id = external_ids.get('ArXiv')
-                    doi = external_ids.get('DOI')
-                    
-                    paper_id = paper_data.get('paperId', '')
-                    url = f"https://www.semanticscholar.org/paper/{paper_id}" if paper_id else ''
-                    
-                    alternative_urls = []
-                    if arxiv_id:
-                        alternative_urls.append(f"https://arxiv.org/abs/{arxiv_id}")
-                        if not pdf_url:
-                            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-                            pdf_available = True
-                    if doi:
-                        alternative_urls.append(f"https://doi.org/{doi}")
-                    
-                    paper = {
-                        'id': paper_id,
-                        'semantic_scholar_id': paper_id,
-                        'title': paper_data.get('title', ''),
-                        'abstract': paper_data.get('abstract', '')[:1000] if paper_data.get('abstract') else '',
-                        'authors': authors,
-                        'year': int(paper_data.get('year') or datetime.now().year),
-                        'citations': int(paper_data.get('citationCount') or 0),
-                        'url': url,
-                        'pdf_url': pdf_url,
-                        'alternative_urls': alternative_urls,
-                        'venue': paper_data.get('venue', ''),
-                        'source': 'Semantic Scholar (API)',
-                        'pdf_available': pdf_available,
-                        'full_text': pdf_available or is_open_access,
-                        'arxiv_id': arxiv_id,
-                        'doi': doi,
-                        'is_open_access': is_open_access
-                    }
-                    
-                    papers.append(paper)
-                
-                # Sort by year (recent first)
-                papers.sort(key=lambda x: x.get('year') or 0, reverse=True)
-                
-                if not papers:
-                    st.info("**Semantic Scholar API**: No papers found for this query")
-                
-                return papers
-                
-            except requests.exceptions.Timeout:
-                st.warning(f"**Semantic Scholar API**: Timeout on attempt {attempt + 1}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(2 * (attempt + 1))
-                continue
-            
-            except Exception as e:
-                st.error(f"**Semantic Scholar API**: Error - {str(e)}")
-                break
-        
-        # Fallback if all fails
-        st.warning("**Semantic Scholar API**: Search failed. Check internet/API key.")
+    def search_papers(self, query: str, max_results: int = 10) -> List[Dict]:
         return []
 
-# ==================== INTELLIGENT MULTI-SOURCE FETCHER ====================
-class IntelligentMultiSourceFetcher:
-    """Multi-source paper fetcher with intelligent access detection"""
+    def _standardize_paper(self, raw_paper: dict) -> dict:
+        """
+        Standard paper fields:
+          id, title, authors (list), year (int|None), abstract, url, pdf_url,
+          source, venue, citations (int|None), full_text (None unless parsed),
+          pdf_available (bool), arxiv_id (if available)
+        """
+        return {
+            'id': raw_paper.get('id', ''),
+            'title': raw_paper.get('title', ''),
+            'authors': raw_paper.get('authors', []),
+            'year': raw_paper.get('year') or 0,
+            'abstract': raw_paper.get('abstract', ''),
+            'url': raw_paper.get('url', ''),
+            'pdf_url': raw_paper.get('pdf_url'),
+            'source': raw_paper.get('source', self.name),
+            'venue': raw_paper.get('venue', ''),
+            'citations': raw_paper.get('citations') or 0,
+            'full_text': raw_paper.get('full_text', None),
+            'pdf_available': bool(raw_paper.get('pdf_url')),
+            'arxiv_id': raw_paper.get('arxiv_id')
+        }
+
+# arXiv fetcher
+class ArxivFetcher(BaseFetcher):
+    """Fetch papers from arXiv using the arxiv python package."""
+    def __init__(self):
+        super().__init__()
+        self.name = "arxiv"
+        # arXiv is open; rate_limit left at 1s by default to be polite
+        self.rate_limit = 1.0
     
+    def search_papers(self, query: str, max_results: int = 10) -> List[Dict]:
+        papers = []
+        try:
+            import arxiv  # Local import for safety
+        except ImportError:
+            print("[ArxivFetcher] arXiv library not available")
+            return []
+        
+        def rewrite_arxiv_query(q):
+            import re
+            words = [w for w in re.findall(r'\w+', q.lower()) if len(w) > 3]
+            if not words:
+                return q
+            # arXiv search uses:
+            #   ti:"title words" AND abs:"abstract words"
+            title_part = " ".join(words[:4])
+            abstract_part = " AND ".join(words[:4])
+            return f'ti:"{title_part}" AND abs:"{abstract_part}"'
+        
+        try:
+            arxiv_q = rewrite_arxiv_query(query)
+            max_results = min(max_results, 100)  # Cap to 100 as per request
+            batch_size = 25  # Safe batch size for pagination
+            offset = 0
+            retries = 0
+            max_retries = 2  # Per batch
+            while len(papers) < max_results and retries < (max_retries * 4):
+                remaining = max_results - len(papers)
+                current_batch = min(batch_size, remaining)
+                search = arxiv.Search(
+                    query=arxiv_q,
+                    max_results=current_batch,
+                    start=offset,  # Pagination offset to fix error
+                    sort_by=arxiv.SortCriterion.Relevance
+                )
+                time.sleep(self.rate_limit)  # Your polite sleep before search
+                results = []
+                try:
+                    results_iter = search.results()
+                    for _ in range(current_batch):
+                        try:
+                            result = next(results_iter)
+                            results.append(result)
+                        except StopIteration:
+                            break  # No more results in batch
+                except arxiv.UnexpectedEmptyPageError:
+                    print(f"[ArxivFetcher] Empty page at offset {offset}; adjusting (query: {query[:50]}...)")
+                    offset += 10  # Skip for sparse results
+                    retries += 1
+                    time.sleep(2)  # Fixed 2s retry pause (adjustable)
+                    continue
+                except Exception as page_e:
+                    print(f"[ArxivFetcher] Pagination error at offset {offset}: {page_e}")
+                    retries += 1
+                    offset += current_batch // 2
+                    time.sleep(2)
+                    continue
+                if not results:
+                    retries += 1
+                    offset += 5
+                    time.sleep(2)
+                    continue
+                batch_count = 0
+                for result in results:
+                    if len(papers) >= max_results:
+                        break
+                    arxiv_id = result.get_short_id()
+                    pdf_url = getattr(result, "pdf_url", None)
+                    if not pdf_url and arxiv_id:
+                        pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+                    paper = {
+                        'id': result.entry_id,
+                        'title': (result.title or "").strip(),
+                        'authors': [a.name for a in (result.authors or [])],
+                        'year': result.published.year if result.published else None,
+                        'abstract': (result.summary or "").strip(),
+                        'url': result.entry_id,
+                        'pdf_url': pdf_url,
+                        'venue': f"arXiv:{arxiv_id}",
+                        'citations': None,  # Enrich next
+                        'full_text': None,
+                        'pdf_available': bool(pdf_url),
+                        'arxiv_id': arxiv_id,
+                        'source': "arXiv"
+                    }
+                    # Your exact enrichment call (with timeout)
+                    paper = enrich_with_semanticscholar(paper, 10)
+                    papers.append(self._standardize_paper(paper))
+                    batch_count += 1
+                    time.sleep(self.rate_limit)  # Your per-paper sleep
+                offset += len(results)
+                retries = 0  # Reset on success
+                if len(results) < current_batch:
+                    break  # End of papers
+                time.sleep(2)  # Batch pause
+        except Exception as e:
+            print(f"[ArxivFetcher] Error fetching from arXiv: {e}")
+            return []
+        return papers
+
+# Semantic Scholar fetcher
+class SemanticScholarFetcher(BaseFetcher):
+    """Fetch papers from Semantic Scholar API (search endpoint)."""
+    def __init__(self):
+        super().__init__()
+        self.name = "semantic_scholar"
+        self.base_url = SEMANTIC_BASE
+        self.headers = SEMANTIC_HEADERS
+        # If you have a key you can raise rate_limit constraints; keep polite defaults
+        self.rate_limit = 1.1
+        self.max_retries = 3
+
+    def _rate_limit(self):
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < self.rate_limit:
+            time.sleep(self.rate_limit - time_since_last)
+        self.last_request_time = time.time()
+
+    def search_papers(self, query: str, max_results: int = 50) -> List[Dict]:
+        """Full search using Semantic Scholar API (robust, fault-tolerant)."""
+        import streamlit as st
+        import requests
+
+        if not query:
+            st.warning("Empty query provided to Semantic Scholar.")
+            return []
+
+        max_results = min(max_results, 100)
+        all_papers = []
+
+        # safety: check API key
+        if not self.api_key:
+            st.error("Semantic Scholar API key missing. Please set SEMANTIC_SCHOLAR_API_KEY.")
+            return []
+
+        for attempt in range(self.max_retries):
+            try:
+                self._rate_limit()
+
+                params = {
+                    "query": query,
+                    "limit": max_results,
+                    "fields": "paperId,title,abstract,authors,year,citationCount,url,venue,openAccessPdf,externalIds,isOpenAccess"
+                }
+
+                # Use headers defined in __init__ or global
+                headers = self.headers
+                if not headers.get("x-api-key"):
+                    headers = {
+                        "User-Agent": "Research Assistant (Educational)",
+                        "Accept": "application/json",
+                    }
+
+                response = requests.get(
+                    f"{self.base_url}/paper/search",
+                    params=params,
+                    headers=headers,
+                    timeout=20,
+                )
+
+                # Handle non-200 responses
+                if response.status_code == 429:
+                    wait_time = 2 + attempt
+                    st.warning(f"Rate limit hit waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                if response.status_code >= 500:
+                    st.warning("Semantic Scholar server error retrying...")
+                    time.sleep(2)
+                    continue
+                if response.status_code != 200:
+                    st.error(f"Semantic Scholar failed (status {response.status_code})")
+                    return []
+
+                data = response.json()
+                raw_papers = data.get("data", [])
+                if not raw_papers:
+                    st.info("No papers returned from Semantic Scholar.")
+                    return []
+
+                for p in raw_papers:
+                    # Basic fields with fallbacks
+                    paper_id = p.get("paperId", "")
+                    title = p.get("title") or "Untitled Paper"
+
+                    # Basic extraction
+                    paper = {
+                        "id": paper_id,
+                        "semantic_scholar_id": paper_id,
+                        "title": title,
+                        "abstract": (p.get("abstract") or "")[:3000],
+                        "authors": [a.get("name", "Unknown") for a in p.get("authors", [])[:5]],
+                        "year": int(p.get("year") or datetime.now().year),
+                        "citations": int(p.get("citationCount") or 0),
+                        "url": p.get("url") or f"https://www.semanticscholar.org/paper/{paper_id}",
+                        "pdf_url": (p.get("openAccessPdf") or {}).get("url"),
+                        "venue": p.get("venue", ""),
+                        "source": "Semantic Scholar (API)",
+                        "pdf_available": bool((p.get("openAccessPdf") or {}).get("url")),
+                        "full_text": (p.get("isOpenAccess", False)),
+                        "arxiv_id": (p.get("externalIds") or {}).get("ArXiv"),
+                        "doi": (p.get("externalIds") or {}).get("DOI"),
+                    }
+                    all_papers.append(paper)
+                return all_papers
+            
+            except Exception as e:
+                time.sleep(1)
+                
+        return []
+
+# Enrichment helper (arXiv -> Semantic Scholar)
+def enrich_with_semanticscholar(paper: Dict, timeout: int = 10) -> Dict:
+    """
+    If paper has arxiv_id, try to fetch its semantic scholar record to get citationCount and OA PDF.
+    This function is defensive: it will not raise on errors and will leave fields unchanged if no data.
+    """
+    if not SEMANTIC_SCHOLAR_API_KEY:
+        # No key provided: don't attempt enrichment
+        return paper
+
+    arxiv_id = paper.get('arxiv_id')
+    # Normalize possible "arXiv:xxxx" format from venue
+    if not arxiv_id:
+        venue = paper.get('venue') or ""
+        if isinstance(venue, str) and venue.startswith("arXiv:"):
+            arxiv_id = venue.split("arXiv:")[-1]
+
+    if not arxiv_id:
+        return paper
+
+    url = f"{SEMANTIC_BASE}/paper/ARXIV:{arxiv_id}"
+    params = {'fields': 'citationCount,openAccessPdf,externalIds'}
+    try:
+        resp = requests.get(url, params=params, headers=SEMANTIC_HEADERS, timeout=timeout)
+        if resp.status_code == 200:
+            data = resp.json()
+            # citationCount may be zero or an int; treat None vs 0 properly
+            if 'citationCount' in data:
+                paper['citations'] = data.get('citationCount')
+            # openAccessPdf may contain url
+            oap = data.get('openAccessPdf') or {}
+            if oap.get('url'):
+                # fill pdf_url only if we don't already have a pdf_url
+                if not paper.get('pdf_url'):
+                    paper['pdf_url'] = oap.get('url')
+                    paper['pdf_available'] = True
+        else:
+            # in case of 429, consider sleeping in callers; we simply do no enrichment
+            if resp.status_code == 429:
+                print("[SemanticScholar] Rate limit hit, sleeping 1.5s...")
+                # mild backoff; don't block forever
+                time.sleep(1.5)
+    except Exception:
+        # Swallow exceptions and return original paper unchanged
+        pass
+    return paper
+
+# PaperFetcher orchestrator (only arXiv + Semantic Scholar)
+class PaperFetcher:
+    """
+    Coordinates fetching from the two supported sources: arXiv and Semantic Scholar.
+    Usage:
+       pf = PaperFetcher()
+       papers = pf.fetch_from_sources("transformer interpretability", sources=['arxiv','semantic_scholar'], papers_per_source=10)
+    """
     def __init__(self):
         self.fetchers = {
             'arxiv': ArxivFetcher(),
             'semantic_scholar': SemanticScholarFetcher()
         }
-        self.accessor = IntelligentPaperAccessor()
-    
-    def fetch_papers(self, query: str, sources: List[str], papers_per_source: int) -> List[Dict]:
-        """Fetch papers with intelligent access detection"""
+
+    def fetch_from_sources(self, query: str, sources: List[str], papers_per_source: int = 10) -> List[Dict]:
+        """
+        Query the selected sources and return a combined list of standardized papers.
+        This function does not deduplicate; deduplication should be done in a separate utils module.
+        """
         all_papers = []
-        source_results = {}
-        
-        # --- FIX: PARALLEL FETCHING ---
-        # We define a helper function to run a single fetcher
-        def run_fetcher(source_name):
-            if source_name not in self.fetchers:
-                return source_name, [], 0.0
-            
-            start = time.time()
-            fetcher = self.fetchers[source_name]
-            # Run the search
-            found_papers = fetcher.search_papers(query, papers_per_source)
-            
-            # Tag the papers
-            display_name = source_name.replace('_', ' ').title()
-            for p in found_papers:
-                p['source'] = display_name
-                p['fetch_source'] = source_name
-                
-            duration = time.time() - start
-            return source_name, found_papers, duration
-    
-        # Execute fetchers in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(sources)) as executor:
-            futures = {executor.submit(run_fetcher, src): src for src in sources}
-            
-            for future in concurrent.futures.as_completed(futures):
-                src_name, papers, duration = future.result()
-                
+        for src in sources:
+            if src not in self.fetchers:
+                print(f"[PaperFetcher] Source '{src}' not supported. Skipping.")
+                continue
+            fetcher = self.fetchers[src]
+            try:
+                print(f"[PaperFetcher] Fetching {papers_per_source} results from {src} for query: {query}")
+                papers = fetcher.search_papers(query, max_results=papers_per_source)
                 all_papers.extend(papers)
-                source_results[src_name] = len(papers)
-                
-                # Display result immediately
-                display_name = src_name.replace('_', ' ').title()
-                if papers:
-                    st.success(f"**{display_name}**: {len(papers)} papers in {duration:.1f}s")
-                else:
-                    st.warning(f"**{display_name}**: No papers found")
-        # -----------------------------
-
-        # Phase 2: Parallel Intelligent access detection (Keep your existing Phase 2 code)
-        if all_papers:
-            st.write("2️⃣ **Access Check:** Verifying which papers have downloadable PDFs...")
-            
-            processed_papers = []
-            accessible_count = 0
-            extracted_count = 0
-            
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-
-            def check_paper(paper):
-                return self.accessor.check_and_extract_paper_content(paper)
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                future_to_paper = {executor.submit(check_paper, p): p for p in all_papers}
-                total_papers = len(all_papers)
-                completed = 0
-
-                for future in concurrent.futures.as_completed(future_to_paper):
-                    enhanced_paper = future.result()
-                    processed_papers.append(enhanced_paper)
-                    
-                    if enhanced_paper.get('extracted_content'):
-                        extracted_count += 1
-                    if enhanced_paper.get('pdf_available') or enhanced_paper.get('working_url'):
-                        accessible_count += 1
-                        
-                    completed += 1
-                    progress_bar.progress(completed / total_papers)
-                    status_text.text(f"Analyzing access: {completed}/{total_papers} papers...")
-
-            progress_bar.empty()
-            status_text.empty()
-            st.markdown(f"""
-            <div class="extraction-status">
-            <strong> Analysis Complete:</strong><br>
-            Total Papers: {len(processed_papers)}<br>
-            Accessible Papers: {accessible_count}<br>
-            Content Extracted: {extracted_count}
-            </div>
-            """, unsafe_allow_html=True)
-            
-            all_papers = processed_papers
-
-        # Phase 3: Deduplication
-        unique_papers = deduplicate_papers(all_papers)
-        unique_papers.sort(key=lambda x: (x.get('year', 0), x.get('month', 0)), reverse=True)
-        
-        self._show_source_breakdown(source_results, len(all_papers), len(unique_papers))
-        
-        return unique_papers
-    
-    def _show_source_breakdown(self, source_results: Dict, total_before: int, total_after: int):
-        """Show detailed source breakdown"""        
-        duplicates_removed = total_before - total_after
-        st.info(f"**Final Summary:** {total_before} papers fetched, {total_after} unique papers (removed {duplicates_removed} duplicates)")
+            except Exception as e:
+                print(f"[PaperFetcher] Error fetching from {src}: {e}")
+        return all_papers
