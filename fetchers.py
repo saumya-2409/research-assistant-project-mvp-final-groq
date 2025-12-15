@@ -9,7 +9,7 @@ from typing import List, Dict, Optional
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-from src.config import SEMANTIC_SCHOLAR_API_KEY
+from config import SEMANTIC_SCHOLAR_API_KEY
 from utils import deduplicate_papers
 
 # Optional Imports
