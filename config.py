@@ -14,15 +14,19 @@ def get_api_key(key_name):
     key = os.getenv(key_name)
     if key:
         return key
+    # 2. Try Streamlit Secrets (Cloud)
     try:
         import streamlit as st
-        return st.secrets.get(key_name)
-    except ImportError:
-        return None
+        # Check if secrets are available and the key exists
+        if hasattr(st, "secrets") and key_name in st.secrets:
+            return st.secrets[key_name]
+    except (ImportError, FileNotFoundError, AttributeError):
+        pass
+
+    return None
 
 # --- Configuration Constants ---
 GROQ_API_KEY = get_api_key("GROQ_API_KEY")
-# Semantic Scholar Key (Optional but recommended)
 SEMANTIC_SCHOLAR_API_KEY = get_api_key("SEMANTIC_SCHOLAR_API_KEY") 
 
 # LLM Config
