@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from embedding_utils import compute_relevance_embedding_score
 from summarizer import FullPaperSummarizer
 from fetchers import IntelligentMultiSourceFetcher
-from src.config import get_api_key
+from config import get_api_key
 from analysis import ResearchGapAnalyzer
 from ui import load_custom_css, render_paper_ui, render_suggested_paper
 
