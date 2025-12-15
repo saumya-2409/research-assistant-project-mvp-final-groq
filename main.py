@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from embedding_utils import compute_relevance_embedding_score
 from summarizer import FullPaperSummarizer
 from fetchers import IntelligentMultiSourceFetcher
-from src.config import get_api_key
+from config import get_api_key
 from utils import deduplicate_papers
 
 load_dotenv()
