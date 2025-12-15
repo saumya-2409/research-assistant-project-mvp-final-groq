@@ -465,3 +465,78 @@ def render_suggested_paper(paper: Dict):
         </a>
     </div>
     """, unsafe_allow_html=True)
+
+def render_welcome_screen(ARXIV_AVAILABLE, BEAUTIFULSOUP_AVAILABLE):
+    # Enhanced welcome screen
+    st.markdown("### Intelligent Research Analysis")
+    
+    steps = [
+        {
+            'title': 'Enter Research Topic',
+            'description': 'Type your research keywords for intelligent multi-source analysis',
+            'expected': 'Focused topics yield better content extraction results'
+        },
+        {
+            'title': 'Select Enhanced Sources', 
+            'description': 'Choose from real APIs with intelligent access detection capabilities',
+            'expected': f'ArXiv: {"" if ARXIV_AVAILABLE else ""}, Semantic Scholar:'
+        },
+        {
+            'title': 'Set Paper Count',
+            'description': 'Choose papers per source (15-100) - system will intelligently analyze accessibility',
+            'expected': 'More papers = comprehensive analysis but longer processing time'
+        },
+        {
+            'title': 'Start Intelligent Analysis',
+            'description': 'AI system will fetch, extract content, detect access, and generate enhanced summaries',
+            'expected': '30-90 seconds for complete intelligent analysis with content extraction'
+        }
+    ]
+
+    col1, col2 = st.columns(2)
+
+    for idx, step in enumerate(steps):
+        column = col1 if idx % 2 == 0 else col2
+        with column:
+            st.markdown(f"""
+            <div class="welcome-step">
+                <div style="display: flex; align-items: flex-start;">
+                    <div class="step-number">{idx + 1}</div>
+                    <div>
+                        <h4 style="margin: 0 0 0.5rem 0; color: #1e293b;">{step['title']}</h4>
+                        <p style="color: #64748b; margin: 0 0 0.8rem 0; line-height: 1.5;">
+                            {step['description']}
+                        </p>
+                        <div style="background: #f1f5f9; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.9rem; color: #475569;">
+                            <strong>Expected:</strong> {step['expected']}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Dependencies and capabilities
+    st.markdown("### System Status")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if ARXIV_AVAILABLE:
+            st.success(" **ArXiv API** - Real papers available")
+        else:
+            st.error("**ArXiv** - Install: `pip install arxiv`")
+    
+    with col2:
+        st.success("**Semantic Scholar** - Enhanced API ready")
+    
+    with col3:
+        if BEAUTIFULSOUP_AVAILABLE:
+            st.success("**Content Extraction** - Advanced parsing")
+        else:
+            st.warning("**Install BeautifulSoup** - `pip install beautifulsoup4`")
+    
+    st.markdown("### Example Results")
+    st.markdown("**Query:** `deep learning transformers` ")
+    st.markdown("**Expected:** 60-300 papers ")
+    st.markdown("**Intelligent Analysis:** Content extraction, access detection, enhanced summaries ")
+    st.markdown("**Time:** 30-90 seconds ")
