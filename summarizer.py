@@ -8,8 +8,20 @@ import logging
 from typing import Dict, Any, Optional, Tuple
 from groq import Groq, RateLimitError
 import streamlit as st
-from dependencies import PYPDF_AVAILABLE 
 
+
+# Setup logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
+
+# Text extraction
+try:
+    import PyPDF2
+    PYPDF2_AVAILABLE = True
+except ImportError:
+    PYPDF2_AVAILABLE = False
+    logger.warning("PyPDF2 missing - PDF extraction will fail.")
 
 # --- CONFIGURATION ---
 # We use llama-3.1-8b-instant for speed.
